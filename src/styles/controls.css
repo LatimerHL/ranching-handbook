@@ -1,0 +1,212 @@
+:root {
+  --control-surface: #f6f0ffcc;
+  --control-ink: #251741;
+  --control-accent: #573a91;
+  --control-border: #40216c38;
+  --control-hover: #6745ad26;
+  --control-shadow: #30205a45;
+  --menu-top: max(.75rem, env(safe-area-inset-top));
+  --control-inset: clamp(.75rem, 3vw, 2.5rem);
+  --control-size: 2.75rem;
+  --control-gap: .55rem;
+  --menu-left: max(var(--control-inset), env(safe-area-inset-left));
+  --actions-right: max(var(--control-inset), env(safe-area-inset-right));
+  --theme-right: calc(var(--actions-right) + var(--control-size) + var(--control-gap));
+}
+
+:root[data-theme="dark"] {
+  --control-surface: #241744b8;
+  --control-ink: #fff;
+  --control-accent: #ffe5af;
+  --control-border: #ffffff38;
+  --control-hover: #a285e244;
+  --control-shadow: #130d3366;
+}
+
+.home-icon-button, .home-menu, .home-theme {
+  color: var(--control-ink);
+  border: 1px solid var(--control-border);
+  background: var(--control-surface);
+  backdrop-filter: blur(20px) saturate(1.18);
+  box-shadow: 0 8px 28px var(--control-shadow);
+}
+
+.home-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-size);
+  block-size: var(--control-size);
+  border-radius: 99px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.home-menu-toggle, .home-actions { position: absolute; inset-block-start: var(--menu-top); }
+.home-menu-toggle { inset-inline-start: var(--menu-left); }
+.home-actions { inset-inline-end: var(--actions-right); display: flex; gap: var(--control-gap); }
+.home:not([data-theme]) .home-theme-toggle { display: none; }
+
+.home-menu-icon {
+  inline-size: 1.125rem;
+  block-size: 2px;
+  background: currentColor;
+  box-shadow: 0 -5px currentColor, 0 5px currentColor;
+}
+
+.home-menu {
+  --slide-duration: var(--motion-medium);
+  --slide-easing: var(--ease-exit);
+  position: fixed;
+  inset: 0 auto 0 0;
+  margin: 0;
+  inline-size: min(18rem, calc(100% - 2.25rem));
+  block-size: auto;
+  max-block-size: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-width: 0 1px 0 0;
+  padding: max(.9rem, env(safe-area-inset-top)) .9rem
+    max(.9rem, env(safe-area-inset-bottom)) max(.9rem, env(safe-area-inset-left));
+  translate: -100%;
+  opacity: 0;
+  transition: translate var(--slide-duration) var(--slide-easing), opacity var(--slide-duration) var(--slide-easing);
+  transition: translate var(--slide-duration) var(--slide-easing), opacity var(--slide-duration) var(--slide-easing),
+    display var(--slide-duration) allow-discrete, overlay var(--slide-duration) allow-discrete;
+}
+
+.home-menu:popover-open {
+  --slide-duration: var(--motion-long);
+  --slide-easing: var(--ease-enter);
+  translate: 0;
+  opacity: 1;
+}
+
+@starting-style {
+  .home-menu:popover-open {
+    translate: -100%;
+    opacity: 0;
+  }
+}
+
+.home-menu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding-inline: .5rem;
+}
+.home-menu-heading h2 {
+  margin: 0;
+  color: var(--control-accent);
+  font-size: .875rem;
+  font-weight: 650;
+}
+.home-menu-heading button {
+  border: 0;
+  border-radius: .4rem;
+  padding: .5rem;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: .875rem;
+  cursor: pointer;
+}
+.home-menu ul { margin: .35rem 0 0; padding: .35rem 0 0; border-top: 1px solid var(--control-border); list-style: none; }
+.home-menu a {
+  display: block;
+  border-radius: .5rem;
+  padding: .75rem .65rem;
+  color: inherit;
+  text-decoration: none;
+}
+.home-icon-button:hover { background-color: color-mix(in srgb, var(--control-surface) 86%, var(--control-accent)); }
+.home-menu a:hover, .home-menu-heading button:hover { background-color: var(--control-hover); }
+.home-icon-button:focus-visible, :is(.home-menu, .home-theme) :focus-visible {
+  outline: 2px solid var(--control-accent);
+  outline-offset: 2px;
+}
+
+.home-theme-icon {
+  inline-size: 1.05rem;
+  block-size: 1.05rem;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+.home-theme {
+  --popover-duration: var(--motion-short);
+  position: fixed;
+  inset: calc(var(--menu-top) + var(--control-size) + .5rem) var(--theme-right) auto auto;
+  margin: 0;
+  inline-size: 10.5rem;
+  border-radius: .875rem;
+  padding: .7rem;
+  transform-origin: top right;
+  translate: 0 -.5rem;
+  scale: .94;
+  opacity: 0;
+  transition: translate var(--popover-duration) var(--ease-enter),
+    scale var(--popover-duration) var(--ease-enter), opacity var(--popover-duration) ease,
+    display var(--popover-duration) allow-discrete, overlay var(--popover-duration) allow-discrete;
+}
+.home-theme:popover-open {
+  --popover-duration: var(--motion-medium);
+  translate: 0 0;
+  scale: 1;
+  opacity: 1;
+}
+@starting-style {
+  .home-theme:popover-open {
+    translate: 0 -.5rem;
+    scale: .94;
+    opacity: 0;
+  }
+}
+.home-theme fieldset { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+.home-theme legend {
+  margin-block-end: .3rem;
+  padding-inline: .55rem;
+  color: var(--control-accent);
+  font-size: .875rem;
+  font-weight: 650;
+}
+.home-theme label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  min-block-size: 2.5rem;
+  border-radius: .45rem;
+  padding: .35rem .65rem;
+  cursor: pointer;
+}
+.home-theme input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.home-theme label::after {
+  content: "";
+  flex: none;
+  inline-size: .35rem;
+  block-size: .65rem;
+  margin-inline-end: .2rem;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  rotate: 45deg;
+  opacity: 0;
+}
+.home-theme label:hover, .home-theme label:has(input:checked) { background: var(--control-hover); }
+.home-theme label:has(input:checked) { color: var(--control-accent); font-weight: 650; }
+.home-theme label:has(input:checked)::after { opacity: 1; }
+.home-theme label:has(input:focus-visible) { outline: 2px solid var(--control-accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-menu, .home-theme { transition: none; }
+}

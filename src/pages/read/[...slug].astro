@@ -1,0 +1,51 @@
+---
+import { resolve } from 'node:path';
+import { slide } from 'astro:transitions';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { loadArticles } from '../../knowledge.mjs';
+import { fanContentNotice, repository, sitePath } from '../../site.mjs';
+
+export async function getStaticPaths() {
+  const knowledge = process.env.HANDBOOK_KNOWLEDGE_DIR ?? resolve('knowledge');
+  const articles = await loadArticles(knowledge);
+  return articles.map(article => ({ params: { slug: article.slug }, props: { article } }));
+}
+
+const { article } = Astro.props;
+const home = sitePath(import.meta.env.BASE_URL);
+---
+
+<BaseLayout title={article.title + ' · 牧场笔记'} description={article.copy}>
+  <link slot="head" rel="stylesheet" href={home + 'assets/style.css'} />
+  <a class="skip" href="#main">跳至主要内容</a>
+  <header class="top">
+    <nav class="container top-inner" aria-label="主导航">
+      <a class="brand" href={home}><span class="brand-mark" aria-hidden="true"></span>牧场笔记</a>
+      <div class="nav-links">
+        <a href={repository + '/blob/main/_INDEX.md'}>资料目录</a>
+        <a class="repo-link" href={repository}>GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main" class="container article-page" transition:name="reading-content" transition:animate={slide({ duration: '320ms' })}>
+    <div class="article-head">
+      <p class="breadcrumbs"><a href={home}>首页</a><span aria-hidden="true">/</span>{article.edition} · {article.category}</p>
+      <h1>{article.title}</h1>
+      <p class="article-intro">{article.copy}</p>
+      <a href={article.source}>在 GitHub 查看{article.sourceLabel}</a>
+    </div>
+    <div class="reading-grid">
+      <nav class="outline" aria-label="本文目录">
+        <p>本文目录</p>
+        <ul>{article.outline.map(({ title, id }) => <li><a href={'#' + encodeURIComponent(id)}>{title}</a></li>)}</ul>
+      </nav>
+      <article class="prose" set:html={article.html}></article>
+    </div>
+  </main>
+  <footer class="foot">
+    <div class="container footer-inner">
+      <a class="brand" href={home}><span class="brand-mark" aria-hidden="true"></span>牧场笔记</a>
+      <div set:html={fanContentNotice}></div>
+    </div>
+  </footer>
+</BaseLayout>

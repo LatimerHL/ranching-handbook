@@ -1,0 +1,38 @@
+:root {
+  --motion-short: 170ms;
+  --motion-medium: 280ms;
+  --motion-long: 420ms;
+  --ease-enter: cubic-bezier(.22, 1, .36, 1);
+  --ease-exit: cubic-bezier(.55, .05, .82, .48);
+}
+
+@keyframes rise-in {
+  from { opacity: 0; translate: 0 var(--motion-distance, .7rem); }
+  to { opacity: 1; translate: 0 0; }
+}
+
+.motion-rise {
+  animation: rise-in var(--motion-long) var(--ease-enter) both;
+  animation-delay: var(--motion-delay, 0ms);
+}
+
+:popover-open .motion-stagger > * {
+  --motion-distance: .4rem;
+  animation: rise-in var(--motion-medium) var(--ease-enter) both;
+  animation-delay: calc(65ms + 35ms * var(--motion-index, 0));
+}
+
+.motion-feedback {
+  transition:
+    background-color var(--motion-short) ease,
+    border-color var(--motion-short) ease,
+    color var(--motion-short) ease,
+    scale var(--motion-short) var(--ease-enter);
+}
+.motion-feedback:active { scale: .96; }
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-rise, :popover-open .motion-stagger > * { animation: none; }
+  .motion-feedback { transition: none; }
+  .motion-feedback:active { scale: none; }
+}

@@ -1,0 +1,135 @@
+@property --cover-tint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+.home {
+  --cover-base: #edf3ff;
+  --cover-tint: transparent;
+  --cover-subtitle: #fff4cd;
+  --sidebar-scrim: #ffffff52;
+  background: var(--cover-base);
+  color: #fff;
+  color-scheme: light;
+  overflow: hidden;
+}
+
+.home[data-theme="dark"] {
+  --cover-base: #1b1530;
+  --cover-tint: #100b302e;
+  --cover-subtitle: #e5d8ff;
+  --sidebar-scrim: #0e0a21a6;
+  color-scheme: dark;
+}
+
+.home body { margin: 0; }
+.home * { box-sizing: border-box; }
+
+.home-hero {
+  --gutter: clamp(1.125rem, 6vw, 6.5rem);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: clamp(.75rem, 3vh, 2rem);
+  block-size: 100vh;
+  block-size: 100dvh;
+  padding: max(1rem, env(safe-area-inset-top))
+    max(var(--gutter), env(safe-area-inset-right))
+    max(clamp(.75rem, 3vh, 2rem), env(safe-area-inset-bottom))
+    max(var(--gutter), env(safe-area-inset-left));
+}
+
+.home-hero::before,
+.home-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  transition: --cover-tint var(--motion-medium) ease;
+}
+
+.home-hero::before {
+  background:
+    linear-gradient(var(--cover-tint), var(--cover-tint)),
+    linear-gradient(0deg, #171239e6, transparent 30%),
+    radial-gradient(ellipse at 3% 91%, #25194ba3, transparent 54%),
+    url("./slime-rancher-2-keyart.png") center / cover no-repeat;
+}
+
+.home-hero::after {
+  background:
+    linear-gradient(var(--cover-tint), var(--cover-tint)),
+    linear-gradient(0deg, #171239eb, transparent 33%),
+    linear-gradient(180deg, #21184980, transparent 28%),
+    url("./slime-rancher-2-keyart-portrait.png") center / cover no-repeat;
+  opacity: 0;
+  transition: opacity 450ms ease-in-out, --cover-tint var(--motion-medium) ease;
+}
+
+.home-sidebar-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--sidebar-scrim);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-medium) var(--ease-enter);
+}
+.home[data-theme="dark"] .home-sidebar-scrim { z-index: 1; }
+.home-hero:has(.home-menu:popover-open) .home-sidebar-scrim { opacity: 1; }
+
+.home-title { align-self: end; text-shadow: 0 2px 16px #211849c9; }
+.home-title h1 {
+  margin: 0;
+  font-size: clamp(2rem, min(8vw, 20vh), 7.25rem);
+  font-weight: 750;
+  letter-spacing: .025em;
+  line-height: 1.08;
+}
+.home-title p {
+  margin: .5em 0 0;
+  color: var(--cover-subtitle);
+  font-size: clamp(.95rem, 1.55vw, 1.35rem);
+  font-weight: 650;
+}
+
+.home-credit {
+  display: flex;
+  color: #fff;
+  font-size: .8125rem;
+  line-height: 1.45;
+  text-shadow: 0 1px 6px #211849;
+}
+.home-notice { max-inline-size: 48rem; }
+.home-credit p { margin: 0; }
+.home-credit p + p { margin-block-start: .35rem; }
+.home-credit a {
+  color: inherit;
+  text-underline-offset: .24em;
+}
+.home-credit a:focus-visible { outline: 2px solid #fff0a5; outline-offset: 4px; }
+
+.home-github-icon {
+  inline-size: 1.18rem;
+  aspect-ratio: 1;
+  background: center / contain no-repeat url("./github-mark-black.png");
+}
+.home[data-theme="dark"] .home-github-icon { background-image: url("./github-mark-white.png"); }
+
+@media (orientation: portrait) {
+  .home-hero::after { opacity: 1; }
+  .home-title {
+    align-self: start;
+    margin-top: clamp(.75rem, 7.5dvh, 6rem);
+    text-align: center;
+  }
+  .home-title h1 { font-size: clamp(2.25rem, 13vw, 6rem); }
+  .home-credit { justify-content: center; text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero::before, .home-hero::after, .home-sidebar-scrim { transition: none; }
+}

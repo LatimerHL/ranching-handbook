@@ -1,0 +1,23 @@
+@import url("./fonts/mona-sans/index.css");
+@import url("./fonts/mona-sans/wght-italic.css");
+@import url("./fonts/noto-sans-sc/index.css");
+@import url("./fonts/noto-sans-tc/index.css");
+
+:root,
+[lang] {
+  font-family: "Mona Sans Variable", var(--font-cjk, "Noto Sans SC Variable"),
+    "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+[lang]:lang(zh-Hant),
+[lang]:lang(zh-TW),
+[lang]:lang(zh-HK),
+[lang]:lang(zh-MO) {
+  --font-cjk: "Noto Sans TC Variable";
+}
+
+[lang]:lang(zh-Hans),
+[lang]:lang(zh-CN),
+[lang]:lang(zh-SG) {
+  --font-cjk: "Noto Sans SC Variable";
+}
