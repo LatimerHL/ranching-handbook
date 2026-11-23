@@ -289,8 +289,8 @@ const arcStyle = isPortraitFrame
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    /* Fade the whole effect layer in from load, over the same span as the key-art entrance. */
-    .home-light-accents {
+    /* Fade the effect layer in alongside the key-art entrance once the images are ready. */
+    :global(.home-key-art[data-entrance]) .home-light-accents {
       opacity: 0;
       animation: home-light-accents-reveal var(--accents-reveal-duration, 1.35s) ease-out both;
     }
@@ -302,20 +302,20 @@ const arcStyle = isPortraitFrame
     }
     /* Same travel rule as the white spindle light points: fade in, drift outward from the focus,
        fade out, then restart. The twinkle below keeps running on the shape the whole time. */
-    .home-light-accent {
+    :global(.home-key-art[data-entrance]) .home-light-accent {
       animation: home-light-spark-drift var(--spark-drift-duration, 12s) linear
         var(--spark-drift-delay, 0s) infinite;
     }
-    .home-light-accent-shape {
+    :global(.home-key-art[data-entrance]) .home-light-accent-shape {
       animation: home-light-spark var(--accent-duration) ease-in-out var(--accent-delay) infinite;
     }
-    .home-light-beam-ribbon {
+    :global(.home-key-art[data-entrance]) .home-light-beam-ribbon {
       animation: home-light-beam-sweep var(--accent-duration) linear var(--accent-delay) infinite;
     }
-    .home-light-arc {
+    :global(.home-key-art[data-entrance]) .home-light-arc {
       animation: home-light-arc-breathe 7.2s ease-in-out infinite;
     }
-    .home-particle-track {
+    :global(.home-key-art[data-entrance]) .home-particle-track {
       animation: home-particle-drift var(--particle-duration) cubic-bezier(.34, .05, .36, 1)
         var(--particle-delay) infinite;
     }

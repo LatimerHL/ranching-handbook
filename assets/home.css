@@ -8,6 +8,7 @@
   --cover-base: #edf3ff;
   --cover-tint: transparent;
   --cover-subtitle: #fff4cd;
+  --cover-loading-ink: #2d254c;
   --sidebar-scrim: #ffffff52;
   background: var(--cover-base);
   color: #fff;
@@ -20,6 +21,7 @@
   --cover-base: #1b1530;
   --cover-tint: #100b302e;
   --cover-subtitle: #e5d8ff;
+  --cover-loading-ink: #f0eaff;
   --sidebar-scrim: #0e0a21a6;
   color-scheme: dark;
 }
@@ -41,6 +43,8 @@
     max(clamp(.75rem, 3vh, 2rem), env(safe-area-inset-bottom))
     max(var(--gutter), env(safe-area-inset-left));
 }
+
+.home-hero:is([data-loading], [data-load-error]) .motion-rise { animation-name: none; }
 
 .home-hero::before,
 .home-hero::after {

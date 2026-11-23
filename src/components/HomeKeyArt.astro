@@ -196,108 +196,7 @@ for (const { orientation, scene } of scenes) {
 ))}
 
 <script>
-  import { gsap } from 'gsap';
-  import { mountHomeParallax } from '../scripts/home-parallax';
-
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  const detailOffsetInRem = {
-    'white-light': 24,
-    foreground: 18,
-    'background-slimes': 6,
-    'distant-slimes': 4,
-    bubbles: 2,
-  };
-  // The reference poster is 1080 px tall. Map vertical travel onto its half-height for the radial layers.
-  const referenceRadiusInRem = 1080 / 2 / 16;
-  let entrance: gsap.core.Timeline | undefined;
-  let unmountParallax: (() => void) | undefined;
-
-  function stopKeyArtEntrance() {
-    entrance?.revert();
-    entrance = undefined;
-  }
-
-  async function playKeyArtEntrance() {
-    if (reducedMotion.matches) return;
-
-    const scenes = [...document.querySelectorAll<HTMLElement>('.home-key-art:not([data-entrance])')];
-    const orientation = matchMedia('(orientation: portrait)').matches ? 'portrait' : 'landscape';
-    const visibleScene = scenes.find(scene => scene.dataset.orientation === orientation);
-    if (!visibleScene) return;
-
-    const layers = (motion: string) => scenes.flatMap(scene => [...scene.querySelectorAll(`[data-motion="${motion}"]`)]);
-    const timeline = gsap.timeline({
-      paused: true,
-      defaults: {
-        duration: 2,
-        ease: 'elastic.out(1, 0.5)',
-      },
-      onComplete: () => {
-        entrance = undefined;
-        for (const scene of scenes) scene.dataset.entrance = 'settled';
-      },
-    });
-    entrance = timeline;
-    timeline.timeScale(1.5);
-
-    const settled = { autoAlpha: 1, clearProps: 'transform,opacity,visibility' };
-    const zoom = (motion: string, initialScale: number, start: number) => {
-      const targets = layers(motion);
-      timeline.set(targets, { scaleX: initialScale, scaleY: initialScale, autoAlpha: 0, immediateRender: true }, 0);
-      timeline.to(targets, { scaleX: 1, scaleY: 1, ...settled }, start);
-    };
-
-    zoom('background', 1 / 1.25, 0);
-    const beatrix = layers('beatrix');
-    timeline.set(beatrix, { y: '12rem', autoAlpha: 0, immediateRender: true }, 0);
-    timeline.to(beatrix, { y: '0rem', ...settled }, 0);
-    for (const [motion, offset] of Object.entries(detailOffsetInRem)) {
-      // The white spindle light points fade in on their own (see .home-key-art-ray), so they
-      // never pop or scale with the rest of the entrance.
-      if (motion === 'white-light') continue;
-      zoom(motion, 1 - offset / referenceRadiusInRem, .2);
-    }
-
-    for (const scene of scenes) scene.dataset.entrance = 'waiting';
-    await Promise.allSettled([...visibleScene.querySelectorAll('img')].map(image => image.decode()));
-
-    if (entrance !== timeline || !visibleScene.isConnected) return;
-    for (const scene of scenes) scene.dataset.entrance = 'playing';
-    timeline.play();
-  }
-
-  function startParallax() {
-    const hero = document.querySelector<HTMLElement>('.home-hero');
-    if (hero && !reducedMotion.matches && !unmountParallax) unmountParallax = mountHomeParallax(hero);
-  }
-
-  function stopParallax() {
-    unmountParallax?.();
-    unmountParallax = undefined;
-  }
-
-  function startKeyArt() {
-    playKeyArtEntrance();
-    startParallax();
-  }
-
-  startKeyArt();
-  document.addEventListener('astro:before-swap', () => {
-    stopKeyArtEntrance();
-    stopParallax();
-  });
-  document.addEventListener('astro:after-swap', startKeyArt);
-  reducedMotion.addEventListener('change', ({ matches }) => {
-    if (matches) {
-      stopKeyArtEntrance();
-      stopParallax();
-    } else {
-      startParallax();
-      for (const scene of document.querySelectorAll<HTMLElement>('.home-key-art')) {
-        scene.dataset.entrance = 'settled';
-      }
-    }
-  });
+  import '../scripts/home-key-art';
 </script>
 
 <style>
@@ -342,10 +241,10 @@ for (const { orientation, scene } of scenes) {
   .home-key-art-motion, .home-key-art-layer[data-parallax] { transform-origin: var(--beam-x) var(--beam-y); }
   @media (prefers-reduced-motion: no-preference) {
     .home-key-art-layer[data-parallax] { transition: transform var(--motion-medium) var(--ease-enter); }
-    .home-key-art-ray {
+    .home-key-art[data-entrance] .home-key-art-ray {
       animation: key-art-ray-travel var(--ray-duration) linear calc(var(--ray-duration) * -.5) infinite;
     }
-    .home-key-art-motion[data-motion="white-light"] {
+    .home-key-art[data-entrance] .home-key-art-motion[data-motion="white-light"] {
       opacity: 0;
       animation: key-art-light-reveal var(--key-art-reveal-duration) ease-out both;
     }
@@ -358,13 +257,13 @@ for (const { orientation, scene } of scenes) {
   @media (prefers-reduced-motion: no-preference) {
     /* Idle life: the character breathes up and down, the foreground drifts in scale around the
        sky's focus point, so the nearer an item is to the horizon the less it seems to swell. */
-    .home-key-art-motion[data-motion="beatrix"] {
+    .home-key-art[data-entrance] .home-key-art-motion[data-motion="beatrix"] {
       animation: key-art-idle-bob 7.4s ease-in-out infinite;
     }
-    .home-key-art-layer[data-idle] .home-key-art-piece {
+    .home-key-art[data-entrance] .home-key-art-layer[data-idle] .home-key-art-piece {
       animation: key-art-idle-breathe var(--idle-duration, 9.6s) ease-in-out var(--idle-delay, 0s) infinite;
     }
-    .home-key-art-layer[data-idle] .home-key-art-piece:nth-of-type(2n) {
+    .home-key-art[data-entrance] .home-key-art-layer[data-idle] .home-key-art-piece:nth-of-type(2n) {
       animation-delay: calc(var(--idle-delay, 0s) - 1.7s);
     }
 

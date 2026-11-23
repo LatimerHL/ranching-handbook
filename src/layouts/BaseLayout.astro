@@ -1,5 +1,6 @@
 ---
 import { ClientRouter, fade } from 'astro:transitions';
+import LoadingIndicator from '../components/LoadingIndicator.astro';
 import { defaultLocale, sitePath } from '../site.mjs';
 import '../styles/motion.css';
 import '../styles/controls.css';
@@ -20,9 +21,31 @@ const assets = sitePath(import.meta.env.BASE_URL, 'assets/');
     <link rel="stylesheet" href={assets + 'typography.css'} />
     <link rel="stylesheet" href={assets + 'cursor.css'} />
     <slot name="head" />
+    <noscript>
+      <style is:inline>
+        #page-loading { display: none; }
+        html body[data-page-loading] > :not(#page-loading) { visibility: visible; }
+      </style>
+    </noscript>
     <ClientRouter />
   </head>
-  <body>
+  <body data-page-loading>
+    <LoadingIndicator />
+    <script is:inline data-astro-rerun>
+      (() => {
+        const page = document.body;
+        if (!page.hasAttribute('data-page-loading')) return;
+        window.setTimeout(() => {
+          if (page.isConnected && page.hasAttribute('data-page-loading')) {
+            page.querySelector('#page-loading')?.setAttribute('data-visible', '');
+          }
+        }, 160);
+      })();
+    </script>
     <slot />
+    <LoadingIndicator navigation />
+    <script>
+      import '../scripts/site-navigation';
+    </script>
   </body>
 </html>

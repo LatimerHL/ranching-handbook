@@ -54,7 +54,9 @@ async function entriesIn(knowledge, folder) {
   return result;
 }
 
-const sourceLink = path => repository + '/blob/main/' + path.split('/').map(encodeURIComponent).join('/');
+const encodePath = path => path.split('/').map(encodeURIComponent).join('/');
+const sourceLink = path => repository + '/blob/main/' + encodePath(path);
+const rawSource = repository.replace('github.com', 'raw.githubusercontent.com') + '/main/';
 const linkFor = path => featured.has(path) ? localArticle(path) : sourceLink(path);
 const markdown = new MarkdownIt({ html: false });
 
@@ -74,6 +76,15 @@ function articleContent(entry, prefix) {
       if (token.tag === 'h2') outline.push({ title, id });
     }
     for (const child of token.children ?? []) {
+      if (child.type === 'image') {
+        child.attrSet('loading', 'lazy');
+        child.attrSet('decoding', 'async');
+        const src = child.attrGet('src');
+        if (src && !/^(?:[a-z][a-z\d+.-]*:|\/|#)/i.test(src)) {
+          child.attrSet('src', new URL(src, rawSource + encodePath(entry.path)).href);
+        }
+        continue;
+      }
       if (child.type !== 'link_open') continue;
       const href = child.attrGet('href');
       if (!href || /^[a-z][a-z\d+.-]*:|^\/\/|^#/.test(href)) continue;
