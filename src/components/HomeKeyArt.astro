@@ -87,7 +87,7 @@ const scenes: { orientation: string; scene: Scene; beam: Point; background: Rect
 });
 
 // Both bubble sets use the same sprite names for different versions of the same artwork.
-const assetId = (file: string) => file.replace(/^bubbles-clarified-v6\//, 'bubbles/');
+const assetId = (file: string) => file.replace(/^bubbles-clarified\//, 'bubbles/');
 const assetsByPieceId = new Map<string, string>();
 
 for (const { orientation, scene } of scenes) {
