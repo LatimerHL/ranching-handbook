@@ -1,0 +1,54 @@
+/* 站点鼠标光标
+ *
+ * 图形：iconPointerCursor（深青描边 + 白 / 浅蓝填充），基准尺寸 32px。
+ * 热点放在图形左上角、被描边圆角空出来的那一小块里（32px 图上为 (7, 0)），
+ * 相当于把圆角补成尖角后箭头真正指向的点；2x 屏用同一热点（CSS 像素单位）。
+ * 图片路径相对本文件，部署到子路径（GitHub Pages 的 /ranching-handbook）时无需改动。
+ */
+
+html {
+  cursor: url("cursors/pointer-light-32.png") 7 0, auto;
+}
+
+/* 高分辨率屏：image-set 让 64px 图按 32px 渲染，边缘更锐利；
+   不支持时保留上面的 32px 版本，热点不变。 */
+@supports (cursor: image-set(url("cursors/pointer-light-32.png") 1x), auto) {
+  html {
+    cursor: image-set(
+      url("cursors/pointer-light-32.png") 1x,
+      url("cursors/pointer-light-64.png") 2x
+    ) 7 0, auto;
+  }
+}
+
+/* 深色主题换用浅描边版本，否则深青描边会融进 #1b1530 的底色。 */
+html[data-theme="dark"] {
+  cursor: url("cursors/pointer-dark-32.png") 7 0, auto;
+}
+
+@supports (cursor: image-set(url("cursors/pointer-dark-32.png") 1x), auto) {
+  html[data-theme="dark"] {
+    cursor: image-set(
+      url("cursors/pointer-dark-32.png") 1x,
+      url("cursors/pointer-dark-64.png") 2x
+    ) 7 0, auto;
+  }
+}
+
+/* 各组件里的 cursor: pointer 会让光标跳回系统手型，这里统一沿用自定义光标。 */
+a,
+button,
+label,
+select,
+summary,
+input[type="checkbox"],
+input[type="radio"],
+[role="button"] {
+  cursor: inherit !important;
+}
+
+/* 可输入文本的地方仍保留系统文本光标，方便定位插入点。 */
+textarea,
+input:not([type="radio"], [type="checkbox"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="file"], [type="color"]) {
+  cursor: auto !important;
+}

@@ -16,12 +16,6 @@
   animation-delay: var(--motion-delay, 0ms);
 }
 
-:popover-open .motion-stagger > * {
-  --motion-distance: .4rem;
-  animation: rise-in var(--motion-medium) var(--ease-enter) both;
-  animation-delay: calc(65ms + 35ms * var(--motion-index, 0));
-}
-
 .motion-feedback {
   transition:
     background-color var(--motion-short) ease,
@@ -32,7 +26,7 @@
 .motion-feedback:active { scale: .96; }
 
 @media (prefers-reduced-motion: reduce) {
-  .motion-rise, :popover-open .motion-stagger > * { animation: none; }
+  .motion-rise { animation: none; }
   .motion-feedback { transition: none; }
   .motion-feedback:active { scale: none; }
 }

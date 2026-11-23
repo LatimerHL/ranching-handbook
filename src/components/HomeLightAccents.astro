@@ -1,0 +1,353 @@
+---
+import layouts from '../data/home-light-accents.json';
+
+interface Props {
+  orientation: string;
+  canvas: { width: number; height: number };
+  origin: { x: number; y: number };
+  background: { x: number; y: number; width: number; height: number };
+}
+
+const { orientation, canvas, origin, background } = Astro.props;
+const { arc, sparks } = orientation === 'portrait' ? layouts.portrait : layouts.landscape;
+const percent = (length: number, total: number) => `${length / total * 100}%`;
+const beams = [
+  { angle: -165, width: 82, color: '#d9fbff' },
+  { angle: -142, width: 68, color: '#86eaff' },
+  { angle: -111, width: 86, color: '#b8f5ff' },
+  { angle: -69, width: 80, color: '#ffffff' },
+  { angle: -32, width: 74, color: '#9cf0ff' },
+  { angle: -14, width: 78, color: '#e4fdff' },
+  { angle: 14, width: 68, color: '#ff92e1' },
+  { angle: 32, width: 54, color: '#87f9e9' },
+  { angle: 63, width: 47, color: '#9ba2ff' },
+  { angle: 135, width: 62, color: '#75d9fc' },
+  { angle: 155, width: 74, color: '#ffaeae' },
+  { angle: 172, width: 59, color: '#bb9dff' },
+  { angle: -128, width: 76, color: '#adeeff' },
+  { angle: -49, width: 84, color: '#6fe6ff' },
+];
+
+function beamLength(angle: number) {
+  const radians = angle * Math.PI / 180;
+  const x = Math.cos(radians);
+  const y = Math.sin(radians);
+  const toSide = ((x > 0 ? canvas.width : 0) - origin.x) / x;
+  const toTopOrBottom = ((y > 0 ? canvas.height : 0) - origin.y) / y;
+  return Math.min(toSide, toTopOrBottom) * 1.22;
+}
+
+// Semi-transparent motes that expand outward from the beam focus, which acts as the vanishing point.
+// They grow as they travel so the ones further out read as closer to the camera.
+let seed = 0x2f6e2b1;
+const random = () => {
+  seed = (seed * 1664525 + 1013904223) % 4294967296;
+  return seed / 4294967296;
+};
+const particleCount = 38;
+const particles = Array.from({ length: particleCount }, (_, index) => {
+  const angle = index * (360 / particleCount) + (random() - .5) * 14;
+  const edge = beamLength(angle) / 1.22;
+  const distance = edge * (1.05 + random() * .35);
+  return {
+    angle,
+    start: distance * (.12 + random() * .3),
+    distance,
+    size: 10 + random() * 20,
+    duration: 11 + random() * 15,
+    delay: -(random() * 26),
+    alpha: .45 + random() * .45,
+  };
+});
+
+// Landscape: a 1.2x ellipse centred on the frame, so the inverted mask lights the outer ring.
+// Portrait frames are tall, so the bloom gathers at the top instead: a dome centred on the top edge,
+// wide enough to run past both sides before it reaches the middle of the picture.
+const isPortraitFrame = orientation === 'portrait';
+const arcStyle = isPortraitFrame
+  ? {
+      left: '50%',
+      top: '0%',
+      width: percent(canvas.width * 1.9, canvas.width),
+      height: percent(canvas.height * 1.18, canvas.height),
+    }
+  : {
+      left: '50%',
+      top: '50%',
+      width: percent(canvas.width * 1.2, canvas.width),
+      height: percent(canvas.height * 1.2, canvas.height),
+    };
+---
+
+<div class="home-light-accents" data-layer="light-accents" data-orientation={orientation} aria-hidden="true">
+  <div class="home-light-static-field">
+  {beams.map(({ angle, width, color }, index) => {
+    const period = (5.6 + index % 5 * .46) * 2;
+    const phase = (index * .618 + .32) % 1;
+    return (
+      <span
+        class="home-light-beam"
+        data-angle={angle}
+        data-region={angle < 0 ? 'sky' : 'ground'}
+        style={{
+          left: percent(origin.x, canvas.width),
+          top: percent(origin.y, canvas.height),
+          width: percent(beamLength(angle), canvas.width),
+          height: percent(width, canvas.height),
+          rotate: `${angle}deg`,
+          '--accent-color': color,
+          '--accent-duration': `${period}s`,
+          '--accent-delay': `${-phase * period}s`,
+        }}
+      ><span class="home-light-beam-ribbon"></span></span>
+    );
+  })}
+  <span class="home-light-arc" style={arcStyle}></span>
+  </div>
+  <div class="home-light-effect-field">
+  {sparks.map(({ x, y, size, color }, index) => {
+    const period = 4.4 + index % 4 * .42;
+    const phase = (index * .618 + .15) % 1;
+    const drift = 12 + index % 5 * 1.4;
+    return (
+      <span
+        class="home-light-accent"
+        data-kind="spark"
+        style={{
+          left: percent(x, canvas.width),
+          top: percent(y, canvas.height),
+          width: percent(size, canvas.width),
+          '--spark-tilt': `${index % 3 * 8 - 8}deg`,
+          '--accent-color': color,
+          '--accent-duration': `${period}s`,
+          '--accent-delay': `${-phase * period}s`,
+          '--spark-drift-duration': `${drift}s`,
+          '--spark-drift-delay': `${-phase * drift}s`,
+          // Scale from the beam focus so the spark travels along its ray instead of growing in place.
+          '--spark-focus-x': percent(origin.x - x, size),
+          '--spark-focus-y': percent(origin.y - y, size),
+        }}
+      ><span class="home-light-accent-shape"></span></span>
+    );
+  })}
+  {particles.map(({ angle, start, distance, size, duration, delay, alpha }) => (
+    <span
+      class="home-particle"
+      style={{
+        left: percent(origin.x, canvas.width),
+        top: percent(origin.y, canvas.height),
+        rotate: `${angle}deg`,
+        '--particle-start': percent(start, canvas.width),
+        '--particle-distance': percent(distance, canvas.width),
+        '--particle-size': percent(size, canvas.width),
+        '--particle-duration': `${duration}s`,
+        '--particle-delay': `${delay}s`,
+        '--particle-alpha': alpha,
+      }}
+    ><span class="home-particle-track"><span class="home-particle-dot"></span></span></span>
+  ))}
+  </div>
+</div>
+
+<style>
+  .home-light-accents {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 1;
+  }
+  .home-light-static-field, .home-light-effect-field {
+    position: absolute;
+    inset: 0;
+  }
+  /* Particles ride a zero-height rail that is as wide as the layer, so percentages of their own
+     width are percentages of the canvas and the motion stays in canvas units. */
+  .home-particle {
+    position: absolute;
+    inline-size: 100%;
+    block-size: 0;
+    transform-origin: 0 0;
+  }
+  .home-particle-track {
+    position: absolute;
+    inset: 0 auto auto 0;
+    inline-size: 100%;
+    block-size: 0;
+    opacity: 0;
+    transform-origin: 0 0;
+  }
+  .home-particle-dot {
+    position: absolute;
+    left: 0;
+    top: 0;
+    inline-size: var(--particle-size);
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    border-radius: 50%;
+    background: radial-gradient(circle,
+      rgb(255 255 255 / .95) 0%,
+      rgb(255 255 255 / .8) 30%,
+      rgb(255 255 255 / .45) 56%,
+      rgb(255 255 255 / .16) 78%,
+      rgb(255 255 255 / 0) 100%);
+  }
+  .home-light-accent {
+    position: absolute;
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    transform-origin: var(--spark-focus-x, 50%) var(--spark-focus-y, 50%);
+  }
+  .home-light-accent-shape {
+    position: absolute;
+    inset: 0;
+    rotate: var(--spark-tilt, 0deg);
+    filter: drop-shadow(0 0 4px var(--accent-color)) drop-shadow(0 0 9px var(--accent-color));
+  }
+  .home-light-accent-shape::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(
+      46% 8%, 48% 5%, 52% 5%, 54% 8%, 59% 31%, 69% 41%,
+      92% 46%, 95% 48%, 95% 52%, 92% 54%, 69% 59%, 59% 69%,
+      54% 92%, 52% 95%, 48% 95%, 46% 92%, 41% 69%, 31% 59%,
+      8% 54%, 5% 52%, 5% 48%, 8% 46%, 31% 41%, 41% 31%
+    );
+    clip-path: shape(
+      from 46% 8%,
+      curve to 54% 8% with 48% 2% / 52% 2%,
+      curve to 92% 46% with 60% 32% / 68% 40%,
+      curve to 92% 54% with 98% 48% / 98% 52%,
+      curve to 54% 92% with 68% 60% / 60% 68%,
+      curve to 46% 92% with 52% 98% / 48% 98%,
+      curve to 8% 54% with 40% 68% / 32% 60%,
+      curve to 8% 46% with 2% 52% / 2% 48%,
+      curve to 46% 8% with 32% 40% / 40% 32%,
+      close
+    );
+    background: var(--accent-color);
+  }
+
+  .home-light-beam {
+    position: absolute;
+    translate: 0 -50%;
+    transform-origin: left center;
+    clip-path: polygon(0 50%, 100% 0, 100% 100%);
+    mix-blend-mode: screen;
+    --beam-fade-in: .54;
+    --beam-peak: .67;
+  }
+  .home-light-beam[data-region="sky"] {
+    mix-blend-mode: normal;
+    --beam-fade-in: .66;
+    --beam-peak: .82;
+  }
+  .home-light-beam-ribbon {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 62%;
+    opacity: 0;
+    background: linear-gradient(90deg, transparent 0%,
+      var(--accent-color) 22%, var(--accent-color) 64%, transparent 100%);
+    mask-image: linear-gradient(0deg, transparent, #0009 22%, #000 46%, #000 54%, #0009 78%, transparent);
+  }
+
+  .home-light-arc {
+    position: absolute;
+    translate: -50% -50%;
+    opacity: 0;
+    /* Bright, low-saturation bloom: near-white core with a faint cool and warm edge. */
+    background: linear-gradient(180deg,
+      rgb(255 255 255 / .96),
+      rgb(226 249 255 / .92) 26%,
+      rgb(198 236 255 / .88) 52%,
+      rgb(226 226 255 / .82) 76%,
+      rgb(255 240 252 / .9));
+    mix-blend-mode: screen;
+    /* Wide, soft ring so the glow fades out instead of ending on a hard edge. */
+    --arc-band: radial-gradient(ellipse closest-side,
+      transparent 0%,
+      rgb(255 255 255 / .04) 30%,
+      rgb(255 255 255 / .16) 50%,
+      rgb(255 255 255 / .38) 68%,
+      rgb(255 255 255 / .62) 85%,
+      rgb(255 255 255 / .8) 100%);
+    mask-image: var(--arc-band);
+    filter: blur(12px);
+  }
+
+  /* Portrait frames are tall, so the bloom gathers at the top instead of ringing the edges:
+     a dome shaped falloff centred on the top edge, wide enough to run past both sides. */
+  .home-light-accents[data-orientation="portrait"] .home-light-arc {
+    --arc-band: radial-gradient(ellipse closest-side,
+      rgb(255 255 255 / .9) 0%,
+      rgb(255 255 255 / .66) 24%,
+      rgb(255 255 255 / .38) 46%,
+      rgb(255 255 255 / .16) 68%,
+      rgb(255 255 255 / .05) 85%,
+      transparent 100%);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Fade the whole effect layer in from load, over the same span as the key-art entrance. */
+    .home-light-accents {
+      opacity: 0;
+      animation: home-light-accents-reveal var(--accents-reveal-duration, 1.35s) ease-out both;
+    }
+    /* Tilt with the pointer or gyroscope around the beam focus, so the light drifts with the scene.
+       Only the sparks and particles move; the beams and the breathing arc stay pinned to the sky. */
+    .home-light-effect-field[data-parallax] {
+      transform-origin: var(--beam-x, 50%) var(--beam-y, 50%);
+      transition: transform var(--motion-medium) var(--ease-enter);
+    }
+    /* Same travel rule as the white spindle light points: fade in, drift outward from the focus,
+       fade out, then restart. The twinkle below keeps running on the shape the whole time. */
+    .home-light-accent {
+      animation: home-light-spark-drift var(--spark-drift-duration, 12s) linear
+        var(--spark-drift-delay, 0s) infinite;
+    }
+    .home-light-accent-shape {
+      animation: home-light-spark var(--accent-duration) ease-in-out var(--accent-delay) infinite;
+    }
+    .home-light-beam-ribbon {
+      animation: home-light-beam-sweep var(--accent-duration) linear var(--accent-delay) infinite;
+    }
+    .home-light-arc {
+      animation: home-light-arc-breathe 7.2s ease-in-out infinite;
+    }
+    .home-particle-track {
+      animation: home-particle-drift var(--particle-duration) cubic-bezier(.34, .05, .36, 1)
+        var(--particle-delay) infinite;
+    }
+  }
+
+  @keyframes home-light-accents-reveal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes home-light-spark-drift {
+    0% { scale: .86; opacity: 0; }
+    18%, 76% { opacity: 1; }
+    100% { scale: 1.16; opacity: 0; }
+  }
+  @keyframes home-light-spark {
+    0%, 100% { opacity: .12; scale: .7; }
+    50% { opacity: .96; scale: 1.1; }
+  }
+  @keyframes home-light-beam-sweep {
+    from { translate: -96% 0; opacity: 0; }
+    13% { opacity: var(--beam-fade-in); }
+    54% { opacity: var(--beam-peak); }
+    76%, 100% { translate: 171% 0; opacity: 0; }
+  }
+  @keyframes home-light-arc-breathe {
+    0%, 100% { opacity: .08; filter: blur(30px); scale: .96; }
+    50% { opacity: .62; filter: blur(8px); scale: 1.05; }
+  }
+  @keyframes home-particle-drift {
+    0% { translate: var(--particle-start) 0; scale: .42; opacity: 0; }
+    10% { opacity: var(--particle-alpha); }
+    62% { opacity: var(--particle-alpha); }
+    100% { translate: var(--particle-distance) 0; scale: 1.55; opacity: 0; }
+  }
+</style>

@@ -13,6 +13,7 @@
   color: #fff;
   color-scheme: light;
   overflow: hidden;
+  overscroll-behavior-x: none;
 }
 
 .home[data-theme="dark"] {
@@ -48,25 +49,22 @@
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  transition: --cover-tint var(--motion-medium) ease;
+  transition: opacity 450ms ease-in-out, --cover-tint var(--motion-medium) ease;
 }
 
 .home-hero::before {
   background:
     linear-gradient(var(--cover-tint), var(--cover-tint)),
     linear-gradient(0deg, #171239e6, transparent 30%),
-    radial-gradient(ellipse at 3% 91%, #25194ba3, transparent 54%),
-    url("./slime-rancher-2-keyart.png") center / cover no-repeat;
+    radial-gradient(ellipse at 3% 91%, #25194ba3, transparent 54%);
 }
 
 .home-hero::after {
   background:
     linear-gradient(var(--cover-tint), var(--cover-tint)),
     linear-gradient(0deg, #171239eb, transparent 33%),
-    linear-gradient(180deg, #21184980, transparent 28%),
-    url("./slime-rancher-2-keyart-portrait.png") center / cover no-repeat;
+    linear-gradient(180deg, #21184980, transparent 28%);
   opacity: 0;
-  transition: opacity 450ms ease-in-out, --cover-tint var(--motion-medium) ease;
 }
 
 .home-sidebar-scrim {
@@ -79,8 +77,13 @@
   transition: opacity var(--motion-medium) var(--ease-enter);
 }
 .home[data-theme="dark"] .home-sidebar-scrim { z-index: 1; }
-.home-hero:has(.home-menu:popover-open) .home-sidebar-scrim { opacity: 1; }
+.home-hero:has(.home-menu:popover-open) .home-sidebar-scrim { opacity: var(--drawer-progress, 1); }
+.home-hero[data-drawer-dragging] .home-sidebar-scrim {
+  opacity: var(--drawer-progress, 0);
+  transition: none;
+}
 
+.home-title, .home-credit { z-index: 0; }
 .home-title { align-self: end; text-shadow: 0 2px 16px #211849c9; }
 .home-title h1 {
   margin: 0;
@@ -120,6 +123,7 @@
 .home[data-theme="dark"] .home-github-icon { background-image: url("./github-mark-white.png"); }
 
 @media (orientation: portrait) {
+  .home-hero::before { opacity: 0; }
   .home-hero::after { opacity: 1; }
   .home-title {
     align-self: start;

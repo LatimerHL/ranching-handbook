@@ -1,0 +1,127 @@
+{
+  "canvas": { "width": 1920, "height": 1080 },
+  "poster": { "width": 2146, "height": 1204 },
+  "layers": [
+    {
+      "id": "background",
+      "scale": 1.25,
+      "elements": [
+        {"id": "sky-background", "file": "hero-scene-layer-5-square.png", "x": 0, "y": -807, "width": 1920, "height": 1920},
+        {"id": "landscape-halo", "file": "hero-ring-light-overlay-v39.png", "x": 0, "y": -807, "width": 1920, "height": 1920}
+      ]
+    },
+    {
+      "id": "bubbles",
+      "elements": [
+        {"id": "bubble-pink-upper-large", "file": "bubbles/01-left-pink-upper-large.png", "x": 786, "y": 89, "width": 57, "height": 60},
+        {"id": "bubble-pink-upper-small", "file": "bubbles/02-left-pink-upper-small.png", "x": 789, "y": 149, "width": 34, "height": 33},
+        {"id": "bubble-blue-left", "file": "bubbles/03-left-blue.png", "x": 610, "y": 143, "width": 47, "height": 48},
+        {"id": "bubble-pink-rounded", "file": "bubbles/04-left-pink-rounded.png", "x": 302, "y": 232, "width": 50, "height": 47},
+        {"id": "bubble-cyan-left", "file": "bubbles/05-left-cyan.png", "x": 391, "y": 257, "width": 57, "height": 52},
+        {"id": "bubble-pink-tiny", "file": "bubbles/06-left-pink-tiny.png", "x": 175, "y": 262, "width": 35, "height": 33},
+        {"id": "bubble-purple-matte", "file": "bubbles/07-left-purple-matte.png", "x": 408, "y": 344, "width": 94, "height": 88},
+        {"id": "bubble-pink-lower", "file": "bubbles/08-left-pink-lower.png", "x": 413, "y": 444, "width": 57, "height": 52},
+        {"id": "bubble-blue-slime", "file": "bubbles/09-left-blue-slime.png", "x": 476, "y": 462, "width": 103, "height": 91},
+        {"id": "bubble-cyan-tiny", "file": "bubbles/10-left-cyan-tiny.png", "x": 699, "y": 484, "width": 35, "height": 34},
+        {"id": "bubble-yellow-matte", "file": "bubbles/11-right-yellow-matte.png", "x": 1134, "y": 86, "width": 51, "height": 53},
+        {"id": "bubble-pale-blue", "file": "bubbles/12-right-pale-blue.png", "x": 1717, "y": 233, "width": 40, "height": 39},
+        {"id": "bubble-blue-right", "file": "bubbles/13-right-blue.png", "x": 1171, "y": 268, "width": 71, "height": 60},
+        {"id": "bubble-pink-pair-large", "file": "bubbles/14-right-pink-pair-large.png", "x": 1610, "y": 277, "width": 62, "height": 63},
+        {"id": "bubble-pink-pair-small", "file": "bubbles/15-right-pink-pair-small.png", "x": 1671, "y": 296, "width": 36, "height": 38},
+        {"id": "bubble-purple-pair-large", "file": "bubbles/16-right-purple-pair-large.png", "x": 1386, "y": 316, "width": 73, "height": 74},
+        {"id": "bubble-purple-pair-small", "file": "bubbles/17-right-purple-pair-small.png", "x": 1367, "y": 365, "width": 24, "height": 28},
+        {"id": "bubble-pink-right-tiny", "file": "bubbles/18-right-pink-tiny.png", "x": 1655, "y": 394, "width": 37, "height": 33},
+        {"id": "bubble-blue-oval", "file": "bubbles/19-right-blue-oval.png", "x": 1577, "y": 510, "width": 56, "height": 44}
+      ]
+    },
+    {
+      "id": "distant-slimes",
+      "elements": [
+        {"id": "background-left-rock", "file": "background-slimes/rock-slime.png", "x": 58, "y": 438, "width": 128, "height": 126},
+        {"id": "background-right-brown", "file": "background-slimes/honey-slime.png", "x": 1700, "y": 291, "width": 92, "height": 91}
+      ]
+    },
+    {
+      "id": "background-chicken",
+      "motion": "foreground",
+      "elements": [
+        {"id": "background-left-winged", "file": "background-slimes/sea-hen.png", "x": 35, "y": 128, "width": 185, "height": 139}
+      ]
+    },
+    {
+      "id": "ringtail",
+      "motion": "background-slimes",
+      "elements": [
+        {"id": "background-left-ringtail", "file": "background-slimes/ringtail-slime.png", "x": 176, "y": 253, "width": 319, "height": 192}
+      ]
+    },
+    {
+      "id": "background-slimes",
+      "elements": [
+        {"id": "background-right-blue", "file": "background-slimes/angler-slime.png", "x": 1550, "y": 92, "width": 151, "height": 147},
+        {"id": "background-right-red-fruit", "file": "background-slimes/pogofruit.png", "x": 1736, "y": 459, "width": 125, "height": 118}
+      ]
+    },
+    {
+      "id": "beatrix",
+      "elements": [
+        {"id": "beatrix", "file": "beatrix.png", "x": 719, "y": 66, "width": 760, "height": 1124}
+      ]
+    },
+    {
+      "id": "foreground-bat",
+      "motion": "distant-slimes",
+      "elements": [
+        {"id": "foreground-purple-bat", "file": "foreground/slimes/batty-slime.png", "x": 323, "y": 56, "width": 230, "height": 178}
+      ]
+    },
+    {
+      "id": "foreground-butterfly",
+      "motion": "background-slimes",
+      "elements": [
+        {"id": "foreground-orange-butterfly", "file": "foreground/slimes/flutter-slime.png", "x": 1100, "y": 97, "width": 220, "height": 197}
+      ]
+    },
+    {
+      "id": "foreground-slimes",
+      "motion": "foreground",
+      "elements": [
+        {"id": "foreground-pink", "file": "foreground/slimes/pink-slime.png", "x": 468, "y": 245, "width": 277, "height": 261}
+      ]
+    },
+    {
+      "id": "foreground",
+      "elements": [
+        {"id": "foreground-yellow-rabbit", "file": "foreground/slimes/cotton-slime.png", "x": 1304, "y": 233, "width": 351, "height": 307},
+        {"id": "crystal-upper-blue-violet", "file": "foreground/crystals/upper-blue-violet.png", "x": 1406, "y": 101, "width": 52, "height": 51},
+        {"id": "crystal-yellow", "file": "foreground/crystals/yellow.png", "x": 559, "y": 128, "width": 44, "height": 49},
+        {"id": "crystal-pink", "file": "foreground/crystals/pink.png", "x": 1798, "y": 160, "width": 94, "height": 81},
+        {"id": "crystal-right-cyan", "file": "foreground/crystals/right-cyan.png", "x": 1846, "y": 335, "width": 58, "height": 48},
+        {"id": "crystal-lower-blue-violet", "file": "foreground/crystals/lower-blue-violet.png", "x": 294, "y": 517, "width": 100, "height": 84},
+        {"id": "crystal-lower-left-cyan", "file": "foreground/crystals/lower-left-cyan.png", "x": 58, "y": 592, "width": 60, "height": 48}
+      ]
+    },
+    {
+      "id": "white-light-points",
+      "motion": "white-light",
+      "elements": [
+        {"id": "light-01", "file": "foreground/white-light-points/01.png", "x": 322, "y": 64, "width": 26, "height": 26},
+        {"id": "light-02", "file": "foreground/white-light-points/02.png", "x": 1488, "y": 70, "width": 28, "height": 34},
+        {"id": "light-03", "file": "foreground/white-light-points/03.png", "x": 659, "y": 72, "width": 25, "height": 36},
+        {"id": "light-04", "file": "foreground/white-light-points/04.png", "x": 1343, "y": 126, "width": 15, "height": 22},
+        {"id": "light-05", "file": "foreground/white-light-points/05.png", "x": 215, "y": 170, "width": 31, "height": 19},
+        {"id": "light-06", "file": "foreground/white-light-points/06.png", "x": 660, "y": 173, "width": 17, "height": 19},
+        {"id": "light-07", "file": "foreground/white-light-points/07.png", "x": 291, "y": 188, "width": 12, "height": 10},
+        {"id": "light-08", "file": "foreground/white-light-points/08.png", "x": 1788, "y": 264, "width": 23, "height": 12},
+        {"id": "light-09", "file": "foreground/white-light-points/09.png", "x": 2, "y": 528, "width": 51, "height": 14},
+        {"id": "light-10", "file": "foreground/white-light-points/10.png", "x": 1539, "y": 535, "width": 25, "height": 8},
+        {"id": "light-11", "file": "foreground/white-light-points/11.png", "x": 513, "y": 698, "width": 25, "height": 8},
+        {"id": "light-12", "file": "foreground/white-light-points/12.png", "x": 1407, "y": 721, "width": 25, "height": 8},
+        {"id": "light-13", "file": "foreground/white-light-points/13.png", "x": 32, "y": 766, "width": 27, "height": 8},
+        {"id": "light-14", "file": "foreground/white-light-points/14.png", "x": 1319, "y": 916, "width": 18, "height": 13},
+        {"id": "light-15", "file": "foreground/white-light-points/15.png", "x": 1456, "y": 922, "width": 37, "height": 25},
+        {"id": "light-16", "file": "foreground/white-light-points/16.png", "x": 401, "y": 929, "width": 39, "height": 21}
+      ]
+    }
+  ]
+}

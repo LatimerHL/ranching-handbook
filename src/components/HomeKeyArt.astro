@@ -1,0 +1,390 @@
+---
+import { sitePath } from '../site.mjs';
+import landscape from '../data/home-scene.json';
+import portrait from '../data/home-scene-portrait.json';
+import HomeLightAccents from './HomeLightAccents.astro';
+
+type Dimensions = { width: number; height: number };
+type Point = { x: number; y: number };
+type Rect = Dimensions & Point;
+type Piece = Rect & {
+  id: string;
+  file: string;
+  rotation?: number;
+  mirrorX?: boolean;
+  opacity?: number;
+  filter?: string;
+  tint?: string;
+};
+type Layer = { id: string; motion?: string; scale?: number; frame?: Rect & { canvas: Dimensions }; elements: Piece[] };
+type Scene = {
+  canvas: Dimensions;
+  poster: Dimensions;
+  layers: Layer[];
+};
+
+const assets = sitePath(import.meta.env.BASE_URL, 'assets/home-scene/');
+// Mirrors the depth tiers in src/scripts/home-parallax.ts: the deeper a layer sits, the larger
+// its idle scale swing, so items drift in the same proportion as they answer the pointer.
+const idleDepths: Record<string, number> = {
+  foreground: 4,
+  'background-slimes': 8,
+  'distant-slimes': 10,
+  bubbles: 2,
+};
+const idleDepthOf = (layer: Layer) => idleDepths[layer.motion ?? layer.id] ?? 0;
+const percent = (size: number, total: number) => (size / total * 100) + '%';
+const position = (rect: Rect, canvas: Dimensions) => ({
+  left: percent(rect.x, canvas.width),
+  top: percent(rect.y, canvas.height),
+  width: percent(rect.width, canvas.width),
+  height: percent(rect.height, canvas.height),
+});
+// Face center measured in the 760 × 1124 Beatrix sprite.
+const faceCenter = { x: 232 / 760, y: 196 / 1124 };
+// The rays converge here in the original 1254 × 1254 sky sprite.
+const beamFocus = { x: 633 / 1254, y: 957 / 1254 };
+const backgroundRect = (scene: Scene) => {
+  const background = scene.layers.find(layer => layer.id === 'background');
+  const sky = background?.elements.find(piece => piece.id === 'sky-background');
+  if (!background || !sky) throw new Error('Key art scene is missing the sky anchor');
+
+  const frame = background.frame ?? { x: 0, y: 0, ...scene.canvas, canvas: scene.canvas };
+  const scale = background.scale ?? 1;
+  const scaleX = frame.width * scale / frame.canvas.width;
+  const scaleY = frame.height * scale / frame.canvas.height;
+
+  return {
+    x: frame.x + frame.width * (1 - scale) / 2 + sky.x * scaleX,
+    y: frame.y + frame.height * (1 - scale) / 2 + sky.y * scaleY,
+    width: sky.width * scaleX,
+    height: sky.height * scaleY,
+  };
+};
+const frameStyle = (scene: Scene, beam: Point) => {
+  const beatrix = scene.layers.find(layer => layer.id === 'beatrix')?.elements.find(piece => piece.id === 'beatrix');
+  if (!beatrix) throw new Error('Key art scene is missing the Beatrix anchor');
+
+  return {
+    '--poster-width': scene.poster.width,
+    '--poster-height': scene.poster.height,
+    '--focus-x': (beatrix.x + beatrix.width * faceCenter.x) / scene.canvas.width,
+    '--focus-y': (beatrix.y + beatrix.height * faceCenter.y) / scene.canvas.height,
+    '--beam-x': percent(beam.x, scene.canvas.width),
+    '--beam-y': percent(beam.y, scene.canvas.height),
+  };
+};
+const scenes: { orientation: string; scene: Scene; beam: Point; background: Rect }[] = [
+  { orientation: 'landscape', scene: landscape },
+  { orientation: 'portrait', scene: portrait },
+].map(({ orientation, scene }) => {
+  const background = backgroundRect(scene);
+  const beam = {
+    x: background.x + background.width * beamFocus.x,
+    y: background.y + background.height * beamFocus.y,
+  };
+  return { orientation, scene, beam, background };
+});
+
+// Both bubble sets use the same sprite names for different versions of the same artwork.
+const assetId = (file: string) => file.replace(/^bubbles-clarified-v6\//, 'bubbles/');
+const assetsByPieceId = new Map<string, string>();
+
+for (const { orientation, scene } of scenes) {
+  const pieceIds = new Set<string>();
+
+  for (const piece of scene.layers.flatMap(layer => layer.elements)) {
+    if (!piece.id || pieceIds.has(piece.id)) {
+      throw new Error(`Missing or duplicate ${orientation} key art piece ID: ${piece.id}`);
+    }
+    pieceIds.add(piece.id);
+
+    const asset = assetId(piece.file);
+    const pairedAsset = assetsByPieceId.get(piece.id);
+    if (pairedAsset && pairedAsset !== asset) {
+      throw new Error(`Key art piece ${piece.id} uses different assets: ${pairedAsset}, ${asset}`);
+    }
+    assetsByPieceId.set(piece.id, asset);
+  }
+}
+---
+
+{scenes.map(({ orientation, scene, beam, background }) => (
+  <div class="home-key-art" data-orientation={orientation} aria-hidden="true">
+    <div class="home-key-art-frame" style={frameStyle(scene, beam)}>
+      {scene.layers.map(layer => (
+        <>
+          <div class="home-key-art-motion" data-motion={layer.motion ?? layer.id}>
+            <div
+              class="home-key-art-layer"
+              data-layer={layer.id}
+              data-idle={idleDepthOf(layer) ? '' : undefined}
+              style={{
+                ...(layer.frame ? position(layer.frame, scene.canvas) : {}),
+                scale: layer.scale,
+                ...(idleDepthOf(layer)
+                  ? {
+                      '--idle-peak': String(1 + idleDepthOf(layer) * .01),
+                      '--idle-duration': `${(7.2 + idleDepthOf(layer) * .6).toFixed(2)}s`,
+                      '--idle-delay': `${(-idleDepthOf(layer) * .9).toFixed(2)}s`,
+                    }
+                  : {}),
+              }}
+            >
+              {layer.elements.map((piece, index) => {
+                const src = assets + piece.file;
+                const geometry = position(piece, layer.frame?.canvas ?? scene.canvas);
+                const isLight = layer.motion === 'white-light';
+                // Keep the sprite's top-left pivot for authored rotation and mirroring. Moving
+                // that pivot by the same factor as the scale makes the whole sprite grow from the beam focus.
+                const idleStep = idleDepthOf(layer) * .01;
+                const idleDrift = idleStep
+                  ? {
+                      '--idle-dx': percent((piece.x - beam.x) * idleStep, piece.width),
+                      '--idle-dy': percent((piece.y - beam.y) * idleStep, piece.height),
+                    }
+                  : {};
+                const placement = {
+                  ...(isLight ? {} : geometry),
+                  ...idleDrift,
+                  rotate: piece.rotation ? piece.rotation + 'deg' : undefined,
+                  transform: piece.mirrorX ? 'translateX(100%) scaleX(-1)' : undefined,
+                  opacity: piece.opacity,
+                };
+                const artwork = (
+                  <>
+                    <img
+                      class="home-key-art-piece"
+                      data-piece-id={piece.id}
+                      data-asset-id={assetId(piece.file)}
+                      src={src}
+                      alt=""
+                      width={Math.round(piece.width)}
+                      height={Math.round(piece.height)}
+                      style={{ ...placement, filter: piece.filter }}
+                    />
+                    {piece.tint && (
+                      <span
+                        class="home-key-art-piece home-key-art-tint"
+                        style={{ ...placement, '--sprite': `url("${src}")`, 'background-image': piece.tint }}
+                      />
+                    )}
+                  </>
+                );
+                if (!isLight) return artwork;
+
+                return (
+                  <span class="home-key-art-ray" style={{
+                    ...geometry,
+                    '--ray-x': percent(beam.x - piece.x, piece.width),
+                    '--ray-y': percent(beam.y - piece.y, piece.height),
+                    '--ray-duration': 9600 + (index % 6) * 840 + 'ms',
+                  }}>
+                    {artwork}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+          {layer.id === 'background' && (
+            <HomeLightAccents orientation={orientation} canvas={scene.canvas} origin={beam} background={background} />
+          )}
+        </>
+      ))}
+    </div>
+  </div>
+))}
+
+<script>
+  import { gsap } from 'gsap';
+  import { mountHomeParallax } from '../scripts/home-parallax';
+
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const detailOffsetInRem = {
+    'white-light': 24,
+    foreground: 18,
+    'background-slimes': 6,
+    'distant-slimes': 4,
+    bubbles: 2,
+  };
+  // The reference poster is 1080 px tall. Map vertical travel onto its half-height for the radial layers.
+  const referenceRadiusInRem = 1080 / 2 / 16;
+  let entrance: gsap.core.Timeline | undefined;
+  let unmountParallax: (() => void) | undefined;
+
+  function stopKeyArtEntrance() {
+    entrance?.revert();
+    entrance = undefined;
+  }
+
+  async function playKeyArtEntrance() {
+    if (reducedMotion.matches) return;
+
+    const scenes = [...document.querySelectorAll<HTMLElement>('.home-key-art:not([data-entrance])')];
+    const orientation = matchMedia('(orientation: portrait)').matches ? 'portrait' : 'landscape';
+    const visibleScene = scenes.find(scene => scene.dataset.orientation === orientation);
+    if (!visibleScene) return;
+
+    const layers = (motion: string) => scenes.flatMap(scene => [...scene.querySelectorAll(`[data-motion="${motion}"]`)]);
+    const timeline = gsap.timeline({
+      paused: true,
+      defaults: {
+        duration: 2,
+        ease: 'elastic.out(1, 0.5)',
+      },
+      onComplete: () => {
+        entrance = undefined;
+        for (const scene of scenes) scene.dataset.entrance = 'settled';
+      },
+    });
+    entrance = timeline;
+    timeline.timeScale(1.5);
+
+    const settled = { autoAlpha: 1, clearProps: 'transform,opacity,visibility' };
+    const zoom = (motion: string, initialScale: number, start: number) => {
+      const targets = layers(motion);
+      timeline.set(targets, { scaleX: initialScale, scaleY: initialScale, autoAlpha: 0, immediateRender: true }, 0);
+      timeline.to(targets, { scaleX: 1, scaleY: 1, ...settled }, start);
+    };
+
+    zoom('background', 1 / 1.25, 0);
+    const beatrix = layers('beatrix');
+    timeline.set(beatrix, { y: '12rem', autoAlpha: 0, immediateRender: true }, 0);
+    timeline.to(beatrix, { y: '0rem', ...settled }, 0);
+    for (const [motion, offset] of Object.entries(detailOffsetInRem)) {
+      // The white spindle light points fade in on their own (see .home-key-art-ray), so they
+      // never pop or scale with the rest of the entrance.
+      if (motion === 'white-light') continue;
+      zoom(motion, 1 - offset / referenceRadiusInRem, .2);
+    }
+
+    for (const scene of scenes) scene.dataset.entrance = 'waiting';
+    await Promise.allSettled([...visibleScene.querySelectorAll('img')].map(image => image.decode()));
+
+    if (entrance !== timeline || !visibleScene.isConnected) return;
+    for (const scene of scenes) scene.dataset.entrance = 'playing';
+    timeline.play();
+  }
+
+  function startParallax() {
+    const hero = document.querySelector<HTMLElement>('.home-hero');
+    if (hero && !reducedMotion.matches && !unmountParallax) unmountParallax = mountHomeParallax(hero);
+  }
+
+  function stopParallax() {
+    unmountParallax?.();
+    unmountParallax = undefined;
+  }
+
+  function startKeyArt() {
+    playKeyArtEntrance();
+    startParallax();
+  }
+
+  startKeyArt();
+  document.addEventListener('astro:before-swap', () => {
+    stopKeyArtEntrance();
+    stopParallax();
+  });
+  document.addEventListener('astro:after-swap', startKeyArt);
+  reducedMotion.addEventListener('change', ({ matches }) => {
+    if (matches) {
+      stopKeyArtEntrance();
+      stopParallax();
+    } else {
+      startParallax();
+      for (const scene of document.querySelectorAll<HTMLElement>('.home-key-art')) {
+        scene.dataset.entrance = 'settled';
+      }
+    }
+  });
+</script>
+
+<style>
+  .home-key-art {
+    position: absolute;
+    inset: 0;
+    z-index: -3;
+    overflow: hidden;
+    pointer-events: none;
+    container-type: size;
+    /* Reveal span for light effects that fade in on load instead of popping with the entrance. */
+    --key-art-reveal-duration: 1.35s;
+  }
+  .home-key-art[data-orientation="portrait"] {
+    /* Keep the landscape scene out of the portrait layers as they fade in. */
+    background: var(--cover-base);
+    opacity: 0;
+    transition: opacity 450ms ease-in-out;
+  }
+  @media (orientation: portrait) {
+    .home-key-art[data-orientation="portrait"] { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .home-key-art[data-orientation="portrait"] { transition: none; }
+  }
+  .home-key-art-frame {
+    --frame-width: max(100cqw, calc(100cqh * var(--poster-width) / var(--poster-height)));
+    --frame-height: calc(var(--frame-width) * var(--poster-height) / var(--poster-width));
+    position: absolute;
+    left: clamp(calc(100cqw - var(--frame-width)), calc(50cqw - var(--frame-width) * var(--focus-x)), 0px);
+    top: clamp(calc(100cqh - var(--frame-height)), calc(50cqh - var(--frame-height) * var(--focus-y)), 0px);
+    width: var(--frame-width);
+    height: var(--frame-height);
+  }
+  .home-key-art-motion, .home-key-art-layer { position: absolute; inset: 0; }
+  .home-key-art-motion[data-motion="white-light"] { z-index: 1; }
+  .home-key-art-motion:has(> :is(
+    [data-layer="foreground-slimes"], [data-layer="foreground-bat"],
+    [data-layer="foreground-butterfly"], [data-layer="foreground-rabbit"], [data-layer="ringtail"]
+  )) { z-index: 2; }
+  .home-key-art-motion[data-motion="beatrix"] { z-index: 3; }
+  .home-key-art-motion, .home-key-art-layer[data-parallax] { transform-origin: var(--beam-x) var(--beam-y); }
+  @media (prefers-reduced-motion: no-preference) {
+    .home-key-art-layer[data-parallax] { transition: transform var(--motion-medium) var(--ease-enter); }
+    .home-key-art-ray {
+      animation: key-art-ray-travel var(--ray-duration) linear calc(var(--ray-duration) * -.5) infinite;
+    }
+    .home-key-art-motion[data-motion="white-light"] {
+      opacity: 0;
+      animation: key-art-light-reveal var(--key-art-reveal-duration) ease-out both;
+    }
+  }
+  .home-key-art[data-orientation="portrait"] .home-key-art-frame { container-type: inline-size; }
+  .home-key-art-piece { position: absolute; transform-origin: top left; }
+  .home-key-art-tint { mask: var(--sprite) center / 100% 100% no-repeat; }
+  .home-key-art-ray { position: absolute; transform-origin: var(--ray-x) var(--ray-y); }
+  .home-key-art-ray > .home-key-art-piece { inset: 0; width: 100%; height: 100%; }
+  @media (prefers-reduced-motion: no-preference) {
+    /* Idle life: the character breathes up and down, the foreground drifts in scale around the
+       sky's focus point, so the nearer an item is to the horizon the less it seems to swell. */
+    .home-key-art-motion[data-motion="beatrix"] {
+      animation: key-art-idle-bob 7.4s ease-in-out infinite;
+    }
+    .home-key-art-layer[data-idle] .home-key-art-piece {
+      animation: key-art-idle-breathe var(--idle-duration, 9.6s) ease-in-out var(--idle-delay, 0s) infinite;
+    }
+    .home-key-art-layer[data-idle] .home-key-art-piece:nth-of-type(2n) {
+      animation-delay: calc(var(--idle-delay, 0s) - 1.7s);
+    }
+
+  }
+
+  @keyframes key-art-idle-bob {
+    0%, 100% { translate: 0 .22%; }
+    50% { translate: 0 -.68%; }
+  }
+  @keyframes key-art-idle-breathe {
+    0%, 100% { scale: 1; translate: 0 0; }
+    50% { scale: var(--idle-peak, 1.04); translate: var(--idle-dx, 0%) var(--idle-dy, 0%); }
+  }
+  @keyframes key-art-light-reveal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes key-art-ray-travel {
+    from { opacity: 0; scale: .84; }
+    20%, 75% { opacity: 1; }
+    to { opacity: 0; scale: 1.16; }
+  }
+</style>

@@ -7,7 +7,7 @@
 
 首页和站内攻略由 Astro 构建，共用 `BaseLayout` 的页面转场、字体和主题。`npm run build` 从资料源仓库的 `game-1/`、`game-2/` 与 `general/` 生成攻略页和资料索引。修改资料请到源仓库投稿。
 
-通用动效在 `src/styles/motion.css` 中定义。`motion-rise` 用于内容淡入上移，`motion-stagger` 用于弹层条目依次出现，`motion-feedback` 用于按钮和链接的按压反馈。
+通用动效在 `src/styles/motion.css` 中定义。`motion-rise` 用于内容淡入上移，`motion-feedback` 用于按钮和链接的按压反馈。
 
 ## 本地预览
 

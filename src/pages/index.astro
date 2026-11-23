@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import HomeKeyArt from '../components/HomeKeyArt.astro';
 import Sidebar from '../components/Sidebar.astro';
 import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import { fanContentNotice, projectRepository, sitePath } from '../site.mjs';
@@ -15,6 +16,7 @@ const assets = sitePath(import.meta.env.BASE_URL, 'assets/');
 >
   <link slot="head" rel="stylesheet" href={assets + 'home.css'} />
   <main class="home-hero" aria-labelledby="welcome">
+    <HomeKeyArt />
     <Sidebar />
     <div class="home-actions">
       <ThemeSwitcher />

@@ -18,6 +18,7 @@ const assets = sitePath(import.meta.env.BASE_URL, 'assets/');
     <title>{title}</title>
     <script is:inline src={assets + 'theme.js'}></script>
     <link rel="stylesheet" href={assets + 'typography.css'} />
+    <link rel="stylesheet" href={assets + 'cursor.css'} />
     <slot name="head" />
     <ClientRouter />
   </head>

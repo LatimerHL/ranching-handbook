@@ -19,15 +19,132 @@ const links = [
     <h2 id="home-menu-title">快捷导航</h2>
     <button class="motion-feedback" type="button" popovertarget="home-menu" popovertargetaction="hide">收起</button>
   </div>
-  <ul class="motion-stagger">
-    {links.map(({ label, href }, index) =>
-      <li style={'--motion-index:' + index}><a class="motion-feedback" href={href}>{label}</a></li>
+  <ul>
+    {links.map(({ label, href }) =>
+      <li><a class="motion-feedback" href={href}>{label}</a></li>
     )}
   </ul>
 </nav>
 
 <script>
+  const edgeWidth = 120;
+  const intentDistance = 9;
+  const flickSpeed = .5;
+  const velocityWindow = 100;
+  let drag;
+  let suppressClickUntil = 0;
+
+  function draw(state, x, time) {
+    state.offset = Math.max(-state.width, Math.min(0, state.initialOffset + x - state.startX));
+    state.hero.style.setProperty('--drawer-offset', state.offset + 'px');
+    state.hero.style.setProperty('--drawer-progress', String(1 + state.offset / state.width));
+    state.samples.push({ x, time });
+    while (state.samples.length > 1 && time - state.samples[0].time > velocityWindow) {
+      state.samples.shift();
+    }
+  }
+
+  function finish(open) {
+    const state = drag;
+    drag = null;
+    if (!state?.width || !state.hero.isConnected) return;
+
+    const { hero, sidebar } = state;
+    // Commit the last drag position before handing it back to the CSS transition.
+    sidebar.getBoundingClientRect();
+    sidebar.inert = false;
+    if (open && !sidebar.matches(':popover-open')) sidebar.showPopover();
+    if (!open && sidebar.matches(':popover-open')) sidebar.hidePopover();
+    hero.removeAttribute('data-drawer-dragging');
+    hero.style.removeProperty('--drawer-offset');
+    hero.style.removeProperty('--drawer-progress');
+  }
+
+  document.addEventListener('touchstart', event => {
+    if (drag) finish(drag.open);
+    suppressClickUntil = 0;
+    const { target, touches } = event;
+    if (touches.length !== 1 || !(target instanceof Element)) return;
+
+    const hero = target.closest('.home-hero');
+    const sidebar = hero?.querySelector('#home-menu');
+    if (!sidebar) return;
+    const open = sidebar.matches(':popover-open');
+    const { identifier, clientX, clientY } = touches[0];
+    if (!open && (clientX > edgeWidth || target.closest('a, button, input, label'))) return;
+
+    drag = {
+      identifier, startX: clientX, startY: clientY, hero, sidebar, open,
+      width: 0, initialOffset: 0, offset: 0, samples: [{ x: clientX, time: event.timeStamp }],
+    };
+  }, { passive: true });
+
+  function move(event) {
+    if (!drag) return;
+    const touch = event.touches[0];
+    if (event.touches.length !== 1 || touch.identifier !== drag.identifier) {
+      finish(drag.open);
+      return;
+    }
+    const { hero, sidebar, open } = drag;
+    if (!drag.width) {
+      const dx = touch.clientX - drag.startX;
+      const dy = Math.abs(touch.clientY - drag.startY);
+      if (dy >= intentDistance && dy > Math.abs(dx)) {
+        drag = null;
+        return;
+      }
+      const distance = open ? -dx : dx;
+      if (distance < intentDistance || distance < dy * 1.25) return;
+
+      const restingOffset = open ? sidebar.getBoundingClientRect().left : 0;
+      hero.setAttribute('data-drawer-dragging', '');
+      sidebar.inert = !open;
+      drag.width = sidebar.offsetWidth;
+      drag.initialOffset = open ? restingOffset : -drag.width;
+    }
+    if (event.cancelable) event.preventDefault();
+    draw(drag, touch.clientX, event.timeStamp);
+  }
+
+  function bindDragSurface() {
+    document.querySelector('.home-hero')?.addEventListener('touchmove', move, { passive: false });
+  }
+
+  bindDragSurface();
+  document.addEventListener('astro:after-swap', bindDragSurface);
+
+  document.addEventListener('touchend', event => {
+    if (!drag) return;
+    const touch = event.changedTouches[0];
+    if (!drag.width || event.touches.length || touch?.identifier !== drag.identifier) {
+      finish(drag.open);
+      return;
+    }
+    draw(drag, touch.clientX, event.timeStamp);
+    const first = drag.samples[0];
+    const velocity = (touch.clientX - first.x) / Math.max(1, event.timeStamp - first.time);
+    const flick = Math.abs(velocity) >= flickSpeed && Math.abs(touch.clientX - drag.startX) >= 20;
+    const open = flick ? velocity > 0 : drag.offset >= -drag.width / 2;
+
+    suppressClickUntil = performance.now() + 400;
+    finish(open);
+  }, { passive: true });
+
+  // Some browsers can synthesize a click after the swipe ends.
+  document.addEventListener('click', event => {
+    if (performance.now() > suppressClickUntil || !event.detail || (event.pointerType && event.pointerType !== 'touch')) return;
+    suppressClickUntil = 0;
+    event.preventDefault();
+    event.stopPropagation();
+  }, { capture: true });
+
+  document.addEventListener('touchcancel', () => {
+    if (drag) finish(drag.open);
+  }, { passive: true });
+
   document.addEventListener('astro:before-preparation', () => {
+    if (drag) finish(false);
     document.querySelector('#home-menu:popover-open')?.hidePopover();
   });
 </script>
