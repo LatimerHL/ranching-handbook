@@ -24,7 +24,7 @@ const tiltFlatness = 0.35;
 const tiltStorageKey = 'ranching-handbook-tilt';
 
 type Mode = 'pointer' | 'tilt';
-type TiltState = 'unknown' | 'granted' | 'denied' | 'unsupported' | 'insecure';
+type TiltState = 'unknown' | 'prompt' | 'granted' | 'denied' | 'unsupported' | 'insecure';
 
 type OrientationEvent = typeof DeviceOrientationEvent & {
   requestPermission?: () => Promise<PermissionState>;
@@ -110,8 +110,16 @@ function tiltShape(degrees: number) {
   return Math.sign(degrees) * reach * reach * (3 - 2 * reach);
 }
 
-// Asked on load, regardless of the user agent. iOS only answers inside a gesture, so a rejection
-// here is retried when the visitor first touches the page.
+// iOS only raises the sensor prompt when requestPermission runs inside a gesture; anywhere else it
+// answers "denied" without asking, and remembers that answer. So this check decides whether the ask
+// has to wait for a tap: asking on load there is worse than not asking at all.
+function tiltNeedsGesture() {
+  const api = window.DeviceOrientationEvent as OrientationEvent | undefined;
+  return typeof api?.requestPermission === 'function' && !motionBlockedByContext();
+}
+
+// Resolves the sensor permission. Callers only reach it on load where no gesture is needed, or from
+// inside a gesture where iOS insists the prompt belongs.
 async function askTiltPermission(): Promise<TiltState> {
   const api = window.DeviceOrientationEvent as OrientationEvent | undefined;
   if (motionBlockedByContext()) return 'insecure';
@@ -148,6 +156,8 @@ export function mountHomeParallax(hero: HTMLElement) {
   let mode: Mode = prefersTilt() ? 'tilt' : 'pointer';
   let tiltState: TiltState = 'unknown';
   let tiltEnabled = tiltPreference();
+  let listening = false;
+  let requesting = false;
   // The pose the device rests in: roll and pitch in degrees, filled in from the first few samples.
   let restRoll = 0;
   let restPitch = 0;
@@ -236,6 +246,7 @@ export function mountHomeParallax(hero: HTMLElement) {
     const label = toggle?.closest('label');
     label?.toggleAttribute('data-unavailable', blocked);
     if (label && insecure) label.title = '需要通过 HTTPS 访问才能启用陀螺仪';
+    else if (label && blocked) label.title = '已拒绝访问运动与方向传感器，在 iOS 设置里允许后刷新页面';
     else label?.removeAttribute('title');
   }
 
@@ -296,12 +307,16 @@ export function mountHomeParallax(hero: HTMLElement) {
   }
 
   function enableTilt() {
-    if (tiltState !== 'granted') return;
+    if (tiltState !== 'granted' || listening) return;
+    listening = true;
     window.addEventListener('deviceorientation', tilt, options);
   }
 
   function requestTilt() {
+    if (requesting || tiltState === 'granted') return;
+    requesting = true;
     askTiltPermission().then(state => {
+      requesting = false;
       if (controller.signal.aborted) return;
       tiltState = state;
       if (state === 'granted') enableTilt();
@@ -309,24 +324,17 @@ export function mountHomeParallax(hero: HTMLElement) {
     });
   }
 
-  // iOS quietly ignores a prompt outside of a gesture, and some builds leave the returned promise
-  // pending forever instead of rejecting. Arm a one-shot gesture retry up front so the first tap or
-  // scroll always produces a real request.
-  const orientationApi = window.DeviceOrientationEvent as OrientationEvent | undefined;
-  if (typeof orientationApi?.requestPermission === 'function' && !motionBlockedByContext()) {
-    const retry = () => {
-      window.removeEventListener('pointerdown', retry);
-      window.removeEventListener('touchstart', retry);
-      if (controller.signal.aborted || tiltState === 'granted') return;
-      askTiltPermission().then(next => {
-        if (controller.signal.aborted) return;
-        tiltState = next;
-        if (next === 'granted') enableTilt();
-        syncToggle();
-      });
+  // iOS prompts only from inside a gesture -- a click or a tap that ends, not the touch that starts
+  // one -- and the answer is remembered per site. So the ask waits for the first real tap instead of
+  // being spent, and refused, during load.
+  if (tiltNeedsGesture()) {
+    const wake = () => {
+      if (!tiltEnabled || tiltState !== 'prompt') return;
+      requestTilt();
     };
-    window.addEventListener('pointerdown', retry, { passive: true, signal: controller.signal });
-    window.addEventListener('touchstart', retry, { passive: true, signal: controller.signal });
+    for (const type of ['click', 'touchend', 'pointerup'] as const) {
+      window.addEventListener(type, wake, { passive: true, signal: controller.signal });
+    }
   }
 
   window.addEventListener('pointermove', event => {
@@ -372,15 +380,23 @@ export function mountHomeParallax(hero: HTMLElement) {
     forgetPose();
     if (!tiltEnabled) {
       settle();
-    } else if (tiltState === 'denied') {
+    } else if (tiltState === 'prompt') {
+      // The tap that just turned the switch is the gesture iOS wants; the listener above would
+      // catch it anyway, this only makes the sequence explicit.
       requestTilt();
     } else if (tiltState === 'granted') {
       mode = 'tilt';
     }
   }, options);
 
-  requestTilt();
-  syncToggle();
+  if (tiltNeedsGesture()) {
+    // Nothing is asked yet, and the switch stays live so the visitor can ask on their own tap.
+    tiltState = 'prompt';
+    syncToggle();
+  } else {
+    requestTilt();
+    syncToggle();
+  }
 
   return () => {
     controller.abort();
