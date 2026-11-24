@@ -266,7 +266,8 @@ html[data-input="mouse"] .home-icon-button:hover,
   margin-block-start: .45rem;
   padding-block-start: .45rem;
 }
-.home-theme label[data-unavailable] { opacity: .5; cursor: default; }
+/* A refused permission or a silent sensor is not a dead control: the label stays live so the visitor
+   can ask again, and only a title explains the last answer. */
 
 @media (prefers-reduced-motion: reduce) {
   .home-menu, .home-theme, .home-icon-button::after { transition: none; }

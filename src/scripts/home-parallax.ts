@@ -264,19 +264,15 @@ export function mountHomeParallax(hero: HTMLElement) {
   }
 
   function syncToggle() {
-    const blocked = tiltState === 'denied';
-    const insecure = tiltState === 'insecure';
-    const unsupported = tiltState === 'unsupported';
     if (toggle) {
-      toggle.checked = tiltEnabled && (effectLive() || (pendingAsk && !blocked));
-      // Never disabled: a refused permission still needs a click to explain itself.
+      toggle.checked = tiltEnabled && (effectLive() || pendingAsk);
+      // Never disabled and never dimmed by an answer: a no is not final, the visitor can ask again.
       toggle.disabled = false;
     }
     const label = toggle?.closest('label');
-    label?.toggleAttribute('data-unavailable', blocked || insecure || unsupported);
-    if (label && insecure) label.title = '需要通过 HTTPS 访问才能启用陀螺仪';
-    else if (label && blocked) label.title = '运动与方向权限被拒绝，可在 iOS 设置里允许后刷新页面';
-    else if (label && unsupported) label.title = '这台设备没有运动与方向传感器';
+    if (label && tiltState === 'insecure') label.title = '需要通过 HTTPS 访问才能启用倾斜动效';
+    else if (label && tiltState === 'denied') label.title = '运动与方向权限被拒绝，可再点一次重试';
+    else if (label && tiltState === 'unsupported') label.title = '这台设备没有运动与方向传感器';
     else if (label && tiltState === 'prompt') label.title = '开启时会请求运动与方向权限';
     else label?.removeAttribute('title');
   }
@@ -304,15 +300,15 @@ export function mountHomeParallax(hero: HTMLElement) {
     toastTimer = window.setTimeout(() => toast?.removeAttribute('data-visible'), 5600);
   }
 
-  // Watch the sensor for a moment. Silence means the device cannot feed the effect -- no gyroscope, or
-  // the sensor is claimed elsewhere -- so it goes off rather than sitting there doing nothing.
+  // Watch the sensor for a moment. Silence means this device cannot feed the effect -- no gyroscope,
+  // or the sensor is claimed elsewhere -- so it goes off rather than sitting there doing nothing. The
+  // stored preference is left alone: the next load tries again instead of remembering a failure.
   function probeSensor(announce: boolean) {
     if (!tiltEnabled || dataSeen || probe !== undefined || mode !== 'tilt') return;
     probe = window.setTimeout(() => {
       probe = undefined;
       if (dataSeen || controller.signal.aborted) return;
       tiltEnabled = false;
-      persistTilt(false);
       if (toggle) toggle.checked = false;
       settle();
       syncToggle();
@@ -420,16 +416,16 @@ export function mountHomeParallax(hero: HTMLElement) {
         }
         enableTilt(origin === 'gesture');
       } else if (origin === 'gesture') {
-        // Asked from a click, and still no permission: the effect stays off, and now says why.
-        tiltEnabled = false;
-        persistTilt(false);
-        if (toggle) toggle.checked = false;
+        // Asked from a click, and still no permission: the effect stays off, and now says why. The
+        // answer is not treated as final -- nothing is remembered and nothing is disabled, so the
+        // next click asks again.
         settle();
+        if (toggle) toggle.checked = false;
         showToast(state === 'insecure'
-          ? '需要通过 HTTPS 访问才能启用陀螺仪倾斜。'
+          ? '需要通过 HTTPS 访问才能启用倾斜动效。'
           : state === 'unsupported'
             ? '这台设备没有运动与方向传感器，倾斜动效保持关闭。'
-            : '没有获得运动与方向权限，倾斜动效保持关闭。可在 iOS“设置 → Safari 浏览器 → 运动与方向”里允许后重试。');
+            : '没有获得运动与方向权限，倾斜动效保持关闭。可以再点一次重试；若一直失败，请在浏览器的网站设置里允许这项权限。');
       }
       syncToggle();
     });
