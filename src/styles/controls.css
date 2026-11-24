@@ -272,6 +272,43 @@ html[data-input="mouse"] .home-icon-button:hover,
   .home-menu, .home-theme, .home-icon-button::after { transition: none; }
 }
 
+/* The tilt switch answers in a toast: asking for the sensor can end with no permission and no other
+   visible change, and silence gets read as a broken control. It never takes the pointer, so the
+   visitor can tap straight through it. */
+.home-tilt-toast {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: calc(1.1rem + env(safe-area-inset-bottom));
+  z-index: 7;
+  inline-size: fit-content;
+  max-inline-size: min(26rem, calc(100vw - 2rem));
+  margin-inline: auto;
+  border: 1px solid var(--control-border);
+  border-radius: .875rem;
+  padding: .7rem 1rem;
+  color: var(--control-ink);
+  background: var(--control-surface);
+  box-shadow: 0 10px 30px var(--control-shadow);
+  font-size: .875rem;
+  line-height: 1.5;
+  text-align: center;
+  text-wrap: balance;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(.4rem);
+  transition: opacity var(--motion-short, .18s) ease,
+    transform var(--motion-short, .18s) var(--ease-enter, ease);
+}
+
+.home-tilt-toast[data-visible] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-tilt-toast { transition: none; }
+}
+
 /* Live backdrop blur costs a background re-blur every frame while a popover slides, so it stays
    at the cheap end: one 14px pass, no saturation boost. */
 .home-icon-button,

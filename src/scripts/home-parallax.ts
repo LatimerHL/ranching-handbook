@@ -21,6 +21,9 @@ const tiltAdoptSpan = (tiltRange + tiltDeadZone) * 1.4;
 // Below this much gravity on the screen plane the device is (almost) flat, where "how far back is it
 // tipped" has no answer. Samples are skipped instead of snapping.
 const tiltFlatness = 0.35;
+// A granted permission is not a working sensor: some devices (or a sensor claimed by another app)
+// hand out the permission and then send nothing. Giving up after this long keeps the switch honest.
+const tiltProbeMs = 1500;
 const tiltStorageKey = 'ranching-handbook-tilt';
 
 type Mode = 'pointer' | 'tilt';
@@ -167,6 +170,14 @@ export function mountHomeParallax(hero: HTMLElement) {
   let tiltEnabled = tiltPreference();
   let listening = false;
   let requesting = false;
+  // True while the visitor's click is waiting on an answer: the switch stays where they put it until
+  // the browser replies, then either the sensor proves itself or the switch goes back with a message.
+  let pendingAsk = false;
+  // True once a real sample has arrived. Until then the sensor is unproven, and nothing may claim the
+  // effect is running.
+  let dataSeen = false;
+  let probe: number | undefined;
+  let toastTimer: number | undefined;
   // The pose the device rests in: roll and pitch in degrees, filled in from the first few samples.
   let restRoll = 0;
   let restPitch = 0;
@@ -245,19 +256,68 @@ export function mountHomeParallax(hero: HTMLElement) {
     adopting = false;
   }
 
+  // On by default, but only claims to be on when the scene can actually move: the pointer is always
+  // there, and the sensor has to have spoken at least once. A switch left checked while nothing
+  // happens is worse than an honest "off".
+  function effectLive() {
+    return mode === 'pointer' || dataSeen;
+  }
+
   function syncToggle() {
     const blocked = tiltState === 'denied';
     const insecure = tiltState === 'insecure';
+    const unsupported = tiltState === 'unsupported';
     if (toggle) {
-      toggle.checked = tiltEnabled && !blocked;
-      toggle.disabled = blocked;
+      toggle.checked = tiltEnabled && (effectLive() || (pendingAsk && !blocked));
+      // Never disabled: a refused permission still needs a click to explain itself.
+      toggle.disabled = false;
     }
     const label = toggle?.closest('label');
-    label?.toggleAttribute('data-unavailable', blocked);
+    label?.toggleAttribute('data-unavailable', blocked || insecure || unsupported);
     if (label && insecure) label.title = '需要通过 HTTPS 访问才能启用陀螺仪';
-    else if (label && blocked) label.title = '已拒绝访问运动与方向传感器，在 iOS 设置里允许后刷新页面';
-    else if (label && tiltState === 'prompt') label.title = '轻触页面任意处即可启用陀螺仪倾斜';
+    else if (label && blocked) label.title = '运动与方向权限被拒绝，可在 iOS 设置里允许后刷新页面';
+    else if (label && unsupported) label.title = '这台设备没有运动与方向传感器';
+    else if (label && tiltState === 'prompt') label.title = '开启时会请求运动与方向权限';
     else label?.removeAttribute('title');
+  }
+
+  function persistTilt(on: boolean) {
+    try {
+      localStorage.setItem(tiltStorageKey, on ? 'on' : 'off');
+    } catch {
+      // Keep the choice for this page.
+    }
+  }
+
+  function showToast(message: string) {
+    let toast = document.querySelector<HTMLElement>('.home-tilt-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'home-tilt-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.append(toast);
+    }
+    toast.textContent = message;
+    toast.dataset.visible = '';
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toast?.removeAttribute('data-visible'), 5600);
+  }
+
+  // Watch the sensor for a moment. Silence means the device cannot feed the effect -- no gyroscope, or
+  // the sensor is claimed elsewhere -- so it goes off rather than sitting there doing nothing.
+  function probeSensor(announce: boolean) {
+    if (!tiltEnabled || dataSeen || probe !== undefined || mode !== 'tilt') return;
+    probe = window.setTimeout(() => {
+      probe = undefined;
+      if (dataSeen || controller.signal.aborted) return;
+      tiltEnabled = false;
+      persistTilt(false);
+      if (toggle) toggle.checked = false;
+      settle();
+      syncToggle();
+      if (announce) showToast('这台设备读不到运动数据，倾斜动效已关闭。');
+    }, tiltProbeMs);
   }
 
   function tilt({ alpha, beta, gamma }: DeviceOrientationEvent) {
@@ -266,6 +326,13 @@ export function mountHomeParallax(hero: HTMLElement) {
       .join(',');
     if (!tiltEnabled || mode !== 'tilt') return;
     if (beta === null || gamma === null || !Number.isFinite(beta) || !Number.isFinite(gamma)) return;
+    if (!dataSeen) {
+      // The switch may say "off" until this very sample; now it can say the truth.
+      dataSeen = true;
+      window.clearTimeout(probe);
+      probe = undefined;
+      syncToggle();
+    }
 
     const radians = screenRadians();
     const gravity = toScreen(gravityInDevice(beta, gamma), radians);
@@ -316,38 +383,63 @@ export function mountHomeParallax(hero: HTMLElement) {
     chaseTilt();
   }
 
-  function enableTilt() {
-    if (tiltState !== 'granted' || listening) return;
-    listening = true;
-    window.addEventListener('deviceorientation', tilt, options);
+  function enableTilt(announce = false) {
+    if (tiltState !== 'granted') return;
+    if (!listening) {
+      listening = true;
+      window.addEventListener('deviceorientation', tilt, options);
+    }
+    probeSensor(announce);
   }
 
-  function requestTilt(silent = false) {
+  function requestTilt(origin: 'load' | 'gesture' = 'gesture') {
     if (requesting || tiltState === 'granted') return;
     requesting = true;
+    if (origin === 'gesture') {
+      pendingAsk = true;
+      syncToggle();
+    }
     askTiltPermission().then(state => {
       requesting = false;
+      pendingAsk = false;
       if (controller.signal.aborted) return;
       // The ask made on load can only succeed quietly, for a site that was already allowed. Refused
-      // there it means "not decided yet", not "no": stay ready for the tap that opens the real prompt.
-      tiltState = silent && state === 'denied' ? 'prompt' : state;
-      if (tiltState === 'granted') enableTilt();
+      // there it means "not decided yet", not "no": the state stays prompt for the tap that follows.
+      if (origin === 'load' && state === 'denied') {
+        tiltState = 'prompt';
+        syncToggle();
+        return;
+      }
+      tiltState = state;
+      if (state === 'granted') {
+        if (origin === 'gesture') {
+          tiltEnabled = true;
+          persistTilt(true);
+          mode = 'tilt';
+          forgetPose();
+        }
+        enableTilt(origin === 'gesture');
+      } else if (origin === 'gesture') {
+        // Asked from a click, and still no permission: the effect stays off, and now says why.
+        tiltEnabled = false;
+        persistTilt(false);
+        if (toggle) toggle.checked = false;
+        settle();
+        showToast(state === 'insecure'
+          ? '需要通过 HTTPS 访问才能启用陀螺仪倾斜。'
+          : state === 'unsupported'
+            ? '这台设备没有运动与方向传感器，倾斜动效保持关闭。'
+            : '没有获得运动与方向权限，倾斜动效保持关闭。可在 iOS“设置 → Safari 浏览器 → 运动与方向”里允许后重试。');
+      }
       syncToggle();
     });
   }
 
   // iOS prompts only from inside a gesture -- a click or a tap that ends, not the touch that starts
-  // one -- and the answer is remembered per site. So the ask waits for the first real tap instead of
-  // being spent, and refused, during load.
-  if (tiltNeedsGesture()) {
-    const wake = () => {
-      if (!tiltEnabled || tiltState !== 'prompt') return;
-      requestTilt();
-    };
-    for (const type of ['click', 'touchend', 'pointerup'] as const) {
-      window.addEventListener(type, wake, { passive: true, signal: controller.signal });
-    }
-  }
+  // one -- and the answer is remembered per site. The ask on load below is the quiet attempt (it can
+  // only succeed for a site that already said yes); the switch in the appearance panel is where the
+  // visitor asks for real, because a page that pounces with a permission dialog on the first tap
+  // anywhere is worse than one that simply starts with the effect off.
 
   window.addEventListener('pointermove', event => {
     if (!tiltEnabled || event.pointerType !== 'mouse') return;
@@ -355,6 +447,7 @@ export function mountHomeParallax(hero: HTMLElement) {
       mode = 'pointer';
       forgetPose();
       settle();
+      syncToggle();
     }
     move(2 * event.clientX / innerWidth - 1, 2 * event.clientY / innerHeight - 1);
   }, options);
@@ -366,6 +459,7 @@ export function mountHomeParallax(hero: HTMLElement) {
         mode = 'tilt';
         forgetPose();
         settle();
+        syncToggle();
       }
     }, options);
   }
@@ -384,38 +478,38 @@ export function mountHomeParallax(hero: HTMLElement) {
 
   toggle?.addEventListener('change', () => {
     tiltEnabled = toggle.checked;
-    try {
-      localStorage.setItem(tiltStorageKey, tiltEnabled ? 'on' : 'off');
-    } catch {
-      // Keep the choice for this page.
-    }
+    persistTilt(tiltEnabled);
     forgetPose();
     if (!tiltEnabled) {
       settle();
-    } else if (tiltState === 'prompt') {
-      // The tap that just turned the switch is the gesture iOS wants; the listener above would
-      // catch it anyway, this only makes the sequence explicit.
-      requestTilt();
     } else if (tiltState === 'granted') {
-      mode = 'tilt';
+      // Already allowed: nothing to ask, only a sensor left to prove.
+      enableTilt(true);
+    } else {
+      // The tap that flipped the switch is the gesture iOS wants, and the place to report back when
+      // the answer is no.
+      requestTilt('gesture');
     }
+    syncToggle();
   }, options);
 
   if (tiltNeedsGesture()) {
-    // The switch stays live while the answer is pending, so the visitor can ask with their own tap.
+    // Nothing can move before the visitor says yes, so the switch starts off and says so. The quiet
+    // ask on load still runs: a site that was already allowed answers without a prompt.
     tiltState = 'prompt';
     syncToggle();
-    // Ask on arrival anyway: iOS answers without a prompt when the site was already allowed, so a
-    // returning visitor never has to touch the page to get the effect moving.
-    requestTilt(true);
+    requestTilt('load');
   } else {
-    requestTilt();
+    requestTilt('load');
     syncToggle();
   }
 
   return () => {
     controller.abort();
     stop();
+    window.clearTimeout(probe);
+    window.clearTimeout(toastTimer);
+    document.querySelector('.home-tilt-toast')?.remove();
     if (frame !== undefined) cancelAnimationFrame(frame);
     for (const { layer } of targets) {
       delete layer.dataset.parallax;
