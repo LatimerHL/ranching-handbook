@@ -110,12 +110,19 @@ function tiltShape(degrees: number) {
   return Math.sign(degrees) * reach * reach * (3 - 2 * reach);
 }
 
-// iOS only raises the sensor prompt when requestPermission runs inside a gesture; anywhere else it
-// answers "denied" without asking, and remembers that answer. So this check decides whether the ask
-// has to wait for a tap: asking on load there is worse than not asking at all.
+// iOS and iPadOS are the only platforms where the sensor prompt has to be raised by a gesture. Chrome
+// also ships requestPermission, but it answers by itself, and asking on load there must not cost the
+// visitor a click. iPadOS reports itself as a Mac, so the touch count is what gives it away.
+function isAppleTouchDevice() {
+  if (/iP(hone|ad|od)/.test(navigator.userAgent)) return true;
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
+
+// iOS only raises the sensor prompt when requestPermission runs inside a gesture; anywhere else the
+// call fails without asking. So this decides whether the ask has to keep a tap in reserve.
 function tiltNeedsGesture() {
   const api = window.DeviceOrientationEvent as OrientationEvent | undefined;
-  return typeof api?.requestPermission === 'function' && !motionBlockedByContext();
+  return isAppleTouchDevice() && typeof api?.requestPermission === 'function' && !motionBlockedByContext();
 }
 
 // Resolves the sensor permission. Callers only reach it on load where no gesture is needed, or from
@@ -125,7 +132,9 @@ async function askTiltPermission(): Promise<TiltState> {
   if (motionBlockedByContext()) return 'insecure';
   // No sensor API at all (most desktops): leave the switch untouched instead of greying it out.
   if (!api) return 'unsupported';
-  if (typeof api.requestPermission !== 'function') return 'granted';
+  // Only iOS withholds the sensor until it says yes. Everywhere else the events simply arrive, so a
+  // "denied" from an unimplemented prompt must not disable the switch.
+  if (typeof api.requestPermission !== 'function' || !isAppleTouchDevice()) return 'granted';
 
   try {
     return await api.requestPermission() === 'granted' ? 'granted' : 'denied';
@@ -247,6 +256,7 @@ export function mountHomeParallax(hero: HTMLElement) {
     label?.toggleAttribute('data-unavailable', blocked);
     if (label && insecure) label.title = '需要通过 HTTPS 访问才能启用陀螺仪';
     else if (label && blocked) label.title = '已拒绝访问运动与方向传感器，在 iOS 设置里允许后刷新页面';
+    else if (label && tiltState === 'prompt') label.title = '轻触页面任意处即可启用陀螺仪倾斜';
     else label?.removeAttribute('title');
   }
 
@@ -312,14 +322,16 @@ export function mountHomeParallax(hero: HTMLElement) {
     window.addEventListener('deviceorientation', tilt, options);
   }
 
-  function requestTilt() {
+  function requestTilt(silent = false) {
     if (requesting || tiltState === 'granted') return;
     requesting = true;
     askTiltPermission().then(state => {
       requesting = false;
       if (controller.signal.aborted) return;
-      tiltState = state;
-      if (state === 'granted') enableTilt();
+      // The ask made on load can only succeed quietly, for a site that was already allowed. Refused
+      // there it means "not decided yet", not "no": stay ready for the tap that opens the real prompt.
+      tiltState = silent && state === 'denied' ? 'prompt' : state;
+      if (tiltState === 'granted') enableTilt();
       syncToggle();
     });
   }
@@ -390,9 +402,12 @@ export function mountHomeParallax(hero: HTMLElement) {
   }, options);
 
   if (tiltNeedsGesture()) {
-    // Nothing is asked yet, and the switch stays live so the visitor can ask on their own tap.
+    // The switch stays live while the answer is pending, so the visitor can ask with their own tap.
     tiltState = 'prompt';
     syncToggle();
+    // Ask on arrival anyway: iOS answers without a prompt when the site was already allowed, so a
+    // returning visitor never has to touch the page to get the effect moving.
+    requestTilt(true);
   } else {
     requestTilt();
     syncToggle();
