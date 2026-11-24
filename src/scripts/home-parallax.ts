@@ -1,7 +1,26 @@
 const depths = { beatrix: 2, foreground: 4, 'white-light': 6, 'background-slimes': 8, 'distant-slimes': 10, bubbles: 12 };
 // The light effects are not wrapped in a [data-motion] layer, so they get their own depth.
 const lightEffectDepth = 7;
-const tiltRange = 18;
+// Degrees of rotation that take the scene from flat to fully deflected. A wrist tilts much further
+// than a mouse travels, so this is deliberately looser than the pointer's reach.
+const tiltRange = 24;
+// Rotation around the resting pose that is ignored outright: a hand that is merely alive should not
+// drag the scene around.
+const tiltDeadZone = 2.5;
+// How long the tilt takes to catch up with the device, as an exponential time constant.
+const tiltEase = 130;
+// Number of samples averaged to find the pose the visitor is holding the device in. Calibrating on a
+// single sample made the zero point as noisy as the sensor itself.
+const tiltRestSamples = 10;
+// Rotations this far outside the range are treated as a new way of holding the device rather than a
+// deliberate tilt, and the resting pose quietly follows them -- all the way, so the scene eases back
+// to level under the new grip. Without that, changing posture leaves the scene pinned at full
+// deflection with nothing left to answer, until the switch is toggled off and on again.
+const tiltAdoptMs = 900;
+const tiltAdoptSpan = (tiltRange + tiltDeadZone) * 1.4;
+// Below this much gravity on the screen plane the device is (almost) flat, where "how far back is it
+// tipped" has no answer. Samples are skipped instead of snapping.
+const tiltFlatness = 0.35;
 const tiltStorageKey = 'ranching-handbook-tilt';
 
 type Mode = 'pointer' | 'tilt';
@@ -32,6 +51,63 @@ function tiltPreference() {
 // prompt at all, which looks like a silent failure, so that case gets its own state and a hint.
 function motionBlockedByContext() {
   return typeof window.isSecureContext === 'boolean' && !window.isSecureContext;
+}
+
+type Vec3 = [number, number, number];
+
+// Gravity in device coordinates, derived from beta and gamma alone: alpha is a compass heading and
+// turning on it never moves gravity. Working from the vector is the fix for the motion feeling
+// jumpy: read as angles, gamma runs away as beta approaches 90 degrees -- the pose a phone is held
+// in while reading -- so ordinary wrist movement used to slam the scene to its limits. Gravity has
+// no such pole.
+function gravityInDevice(beta: number, gamma: number): Vec3 {
+  const b = beta * Math.PI / 180;
+  const g = gamma * Math.PI / 180;
+  return [Math.cos(b) * Math.sin(g), -Math.sin(b), -Math.cos(b) * Math.cos(g)];
+}
+
+// The screen itself may be turned inside the device, so gravity is rotated into screen coordinates;
+// that keeps left-right meaning left-right in landscape too.
+function toScreen([x, y, z]: Vec3, radians: number): Vec3 {
+  const c = Math.cos(radians);
+  const s = Math.sin(radians);
+  return [x * c + y * s, y * c - x * s, z];
+}
+
+// How much gravity lies in the screen plane. A phone held upright has all of it, a phone lying on
+// the table none, and only the second case has an undefined roll, so this doubles as the test for
+// lying flat: hypot, not -y, because -y alone is small for a phone held sideways in landscape.
+function inPlaneGravity([x, y]: Vec3) {
+  return Math.hypot(x, y);
+}
+
+// Roll and pitch of the device against the horizon, in degrees. Dividing by the in-plane magnitude
+// keeps pitch well behaved while the screen is rolled: -y on its own collapses towards zero for a
+// landscape pose, which is where the tilt used to go dead.
+function horizon([x, y, z]: Vec3): [number, number] {
+  const inPlane = inPlaneGravity([x, y, z]);
+  return [Math.atan2(x, -y) * 180 / Math.PI, Math.atan2(-z, inPlane) * 180 / Math.PI];
+}
+
+function screenRadians() {
+  return ((screen.orientation?.angle ?? window.orientation ?? 0) * Math.PI) / 180;
+}
+
+function averageVector(vectors: Vec3[]): Vec3 {
+  const sum: Vec3 = [0, 0, 0];
+  for (const vector of vectors) {
+    sum[0] += vector[0];
+    sum[1] += vector[1];
+    sum[2] += vector[2];
+  }
+  return [sum[0] / vectors.length, sum[1] / vectors.length, sum[2] / vectors.length];
+}
+
+// Nothing inside the dead zone, then a smoothstep up to full deflection. A linear map moved the
+// scene as much for a tremor as for a deliberate lean.
+function tiltShape(degrees: number) {
+  const reach = Math.min(1, Math.max(0, (Math.abs(degrees) - tiltDeadZone) / (tiltRange - tiltDeadZone)));
+  return Math.sign(degrees) * reach * reach * (3 - 2 * reach);
 }
 
 // Asked on load, regardless of the user agent. iOS only answers inside a gesture, so a rejection
@@ -65,10 +141,22 @@ export function mountHomeParallax(hero: HTMLElement) {
   let frame: number | undefined;
   let nextX = 0;
   let nextY = 0;
+  // Where the tilt is heading; nextX/nextY chase it so sensor noise arrives as motion, not jitter.
+  let targetX = 0;
+  let targetY = 0;
+  let chase: number | undefined;
   let mode: Mode = prefersTilt() ? 'tilt' : 'pointer';
   let tiltState: TiltState = 'unknown';
   let tiltEnabled = tiltPreference();
-  let neutral: { beta: number; gamma: number; angle: number } | undefined;
+  // The pose the device rests in: roll and pitch in degrees, filled in from the first few samples.
+  let restRoll = 0;
+  let restPitch = 0;
+  let restAngle = Number.NaN;
+  const resting: Vec3[] = [];
+  let lastTiltAt = 0;
+  // Set once a pose outside the range has been adopted, and kept until the scene is back near level:
+  // adoption has to run to completion, or it would stop just far enough out to stay pinned.
+  let adopting = false;
 
   for (const { layer } of targets) layer.dataset.parallax = '';
 
@@ -88,15 +176,54 @@ export function mountHomeParallax(hero: HTMLElement) {
 
   function move(x: number, y: number) {
     // 保留到中心的距离（否则恒为单位向量，位移永远一样大）。
-    nextX = Math.max(-1, Math.min(1, x));
-    nextY = Math.max(-1, Math.min(1, y));
+    stop();
+    targetX = nextX = Math.max(-1, Math.min(1, x));
+    targetY = nextY = Math.max(-1, Math.min(1, y));
     paint();
   }
 
+  function stop() {
+    if (chase !== undefined) cancelAnimationFrame(chase);
+    chase = undefined;
+  }
+
+  // Chase the tilt target frame by frame. Time based, so a slow phone eases at the same speed as a
+  // fast one instead of stuttering.
+  function chaseTilt() {
+    if (chase !== undefined) return;
+    let last = performance.now();
+    const step = (now: number) => {
+      const elapsed = Math.min(64, now - last);
+      last = now;
+      const k = 1 - Math.exp(-elapsed / tiltEase);
+      nextX += (targetX - nextX) * k;
+      nextY += (targetY - nextY) * k;
+      const arrived = Math.abs(targetX - nextX) < .0015 && Math.abs(targetY - nextY) < .0015;
+      if (arrived) {
+        nextX = targetX;
+        nextY = targetY;
+      }
+      paint();
+      chase = arrived ? undefined : requestAnimationFrame(step);
+    };
+    chase = requestAnimationFrame(step);
+  }
+
   function settle() {
+    stop();
+    targetX = 0;
+    targetY = 0;
     nextX = 0;
     nextY = 0;
     paint();
+  }
+
+  // Measure the pose again from the next samples: a new grip, a turned screen or a returning tab all
+  // invalidate the old zero point.
+  function forgetPose() {
+    restAngle = Number.NaN;
+    resting.length = 0;
+    adopting = false;
   }
 
   function syncToggle() {
@@ -119,17 +246,53 @@ export function mountHomeParallax(hero: HTMLElement) {
     if (!tiltEnabled || mode !== 'tilt') return;
     if (beta === null || gamma === null || !Number.isFinite(beta) || !Number.isFinite(gamma)) return;
 
-    const angle = screen.orientation?.angle ?? window.orientation ?? 0;
-    if (!neutral || neutral.angle !== angle) {
-      neutral = { beta, gamma, angle };
+    const radians = screenRadians();
+    const gravity = toScreen(gravityInDevice(beta, gamma), radians);
+    // Lying flat: that pose has no meaningful left-right, and the angles below would jump about.
+    if (inPlaneGravity(gravity) < tiltFlatness) return;
+
+    const [roll, pitch] = horizon(gravity);
+
+    // Recalibrate when the screen turns: roll and pitch swap roles, so the old zero point is wrong.
+    if (radians !== restAngle) {
+      restAngle = radians;
+      resting.length = 0;
+      adopting = false;
+    }
+    if (resting.length < tiltRestSamples) {
+      resting.push(gravity);
+      if (resting.length === tiltRestSamples) {
+        [restRoll, restPitch] = horizon(averageVector(resting));
+      }
       settle();
       return;
     }
 
-    const radians = angle * Math.PI / 180;
-    const x = (gamma - neutral.gamma) / tiltRange;
-    const y = (((beta - neutral.beta + 540) % 360) - 180) / tiltRange;
-    move(x * Math.cos(radians) + y * Math.sin(radians), y * Math.cos(radians) - x * Math.sin(radians));
+    let dx = roll - restRoll;
+    const dy = pitch - restPitch;
+
+    // Held well outside the range: the visitor has changed how they hold the phone (lying down, phone
+    // propped on a knee) rather than tilted it further. Following the pose all the way eases the scene
+    // back to level under the new grip, so the effect has room to answer again -- and it keeps going
+    // until it gets there, because stopping at the edge of the range would leave the scene pinned.
+    const now = performance.now();
+    const elapsed = Math.min(120, now - lastTiltAt);
+    lastTiltAt = now;
+    const deflection = Math.max(Math.abs(dx), Math.abs(dy));
+    const follow = adopting ? deflection > tiltRange * .4 : deflection > tiltAdoptSpan;
+    if (follow) {
+      adopting = true;
+      const k = 1 - Math.exp(-elapsed / tiltAdoptMs);
+      restRoll += dx * k;
+      restPitch += dy * k;
+      dx = roll - restRoll;
+    } else {
+      adopting = false;
+    }
+
+    targetX = tiltShape(dx);
+    targetY = tiltShape(pitch - restPitch);
+    chaseTilt();
   }
 
   function enableTilt() {
@@ -170,7 +333,7 @@ export function mountHomeParallax(hero: HTMLElement) {
     if (!tiltEnabled || event.pointerType !== 'mouse') return;
     if (mode !== 'pointer') {
       mode = 'pointer';
-      neutral = undefined;
+      forgetPose();
       settle();
     }
     move(2 * event.clientX / innerWidth - 1, 2 * event.clientY / innerHeight - 1);
@@ -181,11 +344,17 @@ export function mountHomeParallax(hero: HTMLElement) {
       if (type === 'pointerdown' && (event as PointerEvent).pointerType === 'mouse') return;
       if (mode !== 'tilt') {
         mode = 'tilt';
-        neutral = undefined;
+        forgetPose();
         settle();
       }
     }, options);
   }
+
+  // Coming back to a tab after a while usually means a different grip: measure the pose again
+  // instead of tilting from wherever the phone happened to be the last time.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) forgetPose();
+  }, options);
 
   // The pointer leaving the page keeps the scene where it was: the cursor often leaves only to
   // reach the browser chrome (or another display) and comes straight back, and the snap to flat
@@ -200,8 +369,8 @@ export function mountHomeParallax(hero: HTMLElement) {
     } catch {
       // Keep the choice for this page.
     }
+    forgetPose();
     if (!tiltEnabled) {
-      neutral = undefined;
       settle();
     } else if (tiltState === 'denied') {
       requestTilt();
@@ -215,6 +384,7 @@ export function mountHomeParallax(hero: HTMLElement) {
 
   return () => {
     controller.abort();
+    stop();
     if (frame !== undefined) cancelAnimationFrame(frame);
     for (const { layer } of targets) {
       delete layer.dataset.parallax;
