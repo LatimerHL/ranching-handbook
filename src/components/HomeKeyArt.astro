@@ -202,12 +202,35 @@ for (const { orientation, scene } of scenes) {
   // the portrait entrance in on top of the landscape one.
   (() => {
     const query = window.matchMedia('(orientation: portrait)');
-    const sync = () => {
-      document.documentElement.dataset.layout = query.matches ? 'portrait' : 'landscape';
+    const root = document.documentElement;
+    let fadeTimer;
+    let current;
+
+    const apply = () => {
+      const next = query.matches ? 'portrait' : 'landscape';
+      // First call for this document: paint the right scene straight away, never cross-fade, so a
+      // transient viewport size during navigation cannot ghost the other orientation in.
+      if (next === current) return;
+      const first = current === undefined;
+      current = next;
+      root.dataset.layout = next;
+      if (first) return;
+      // Live change: keep both scenes painted for the length of the cross-fade.
+      root.dataset.layoutFading = '';
+      window.clearTimeout(fadeTimer);
+      fadeTimer = window.setTimeout(() => {
+        delete root.dataset.layoutFading;
+      }, 460);
     };
-    sync();
-    query.addEventListener('change', sync);
-    document.addEventListener('astro:after-swap', sync);
+
+    apply();
+    query.addEventListener('change', apply);
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', apply);
+    document.addEventListener('astro:after-swap', () => {
+      current = undefined;
+      apply();
+    });
   })();
 </script>
 
@@ -251,6 +274,13 @@ for (const { orientation, scene } of scenes) {
       opacity: 0;
       visibility: hidden;
     }
+  }
+  /* Live rotation cross-fades the two scenes. Both stay painted for the length of the transition,
+     so the outgoing one fades out while the incoming one fades in instead of one popping in over
+     the other. Outside this window the swap is instant (navigation must never ghost). */
+  :global(html[data-layout-fading]) .home-key-art[data-orientation] {
+    visibility: visible;
+    transition: opacity 420ms var(--ease-enter, cubic-bezier(.22, .61, .21, 1));
   }
   .home-key-art-frame {
     --frame-width: max(100cqw, calc(100cqh * var(--poster-width) / var(--poster-height)));

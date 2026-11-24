@@ -187,7 +187,10 @@ export function mountHomeParallax(hero: HTMLElement) {
     }, options);
   }
 
-  document.documentElement.addEventListener('pointerleave', settle, options);
+  // The pointer leaving the page keeps the scene where it was: the cursor often leaves only to
+  // reach the browser chrome (or another display) and comes straight back, and the snap to flat
+  // in between read as the effect fighting the visitor. Losing window focus still settles, so a
+  // tilted scene never sits frozen behind another app.
   window.addEventListener('blur', settle, options);
 
   toggle?.addEventListener('change', () => {
