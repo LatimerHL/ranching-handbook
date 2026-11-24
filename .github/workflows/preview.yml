@@ -1,0 +1,80 @@
+name: Preview branch
+
+# Publishes one branch next to the production site, at /ranching-handbook/ios/, without touching what
+# the production URL serves: the main site is built from main into the artifact root, and the branch
+# is built with a deeper base into dist/ios/.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch published under /ios/
+        required: true
+        default: ios/tilt-permission
+        type: string
+  push:
+    branches: ['ios/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          path: site
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+          path: site-preview
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: LatimerHL/RanchingFieldNotes
+          ref: main
+          path: knowledge
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Build production from main
+        working-directory: site
+        run: |
+          npm ci
+          npm run build -- ../knowledge
+      - name: Build preview under /ios/
+        working-directory: site-preview
+        env:
+          SITE_BASE: /ranching-handbook/ios
+        run: |
+          npm ci
+          npm run build -- ../knowledge
+      - name: Fold the preview into the site
+        run: |
+          mkdir -p site/dist/ios
+          cp -R site-preview/dist/. site/dist/ios/
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: publish
