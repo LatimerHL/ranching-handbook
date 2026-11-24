@@ -312,7 +312,7 @@ export function mountHomeParallax(hero: HTMLElement) {
       if (toggle) toggle.checked = false;
       settle();
       syncToggle();
-      if (announce) showToast('这台设备读不到运动数据，倾斜动效已关闭。');
+      if (announce) showToast('这台设备读不到运动数据，基于设备运动的倾斜动效已关闭。');
     }, tiltProbeMs);
   }
 
@@ -424,7 +424,7 @@ export function mountHomeParallax(hero: HTMLElement) {
         showToast(state === 'insecure'
           ? '需要通过 HTTPS 访问才能启用倾斜动效。'
           : state === 'unsupported'
-            ? '这台设备没有运动与方向传感器，倾斜动效保持关闭。'
+            ? '这台设备没有运动与方向传感器，基于设备运动的倾斜动效保持关闭。'
             : '没有获得运动与方向权限，基于设备运动的倾斜动效保持关闭。可以再点一次重试；若一直失败，请在浏览器的网站设置里允许这项权限或重置站点数据。');
       }
       syncToggle();
