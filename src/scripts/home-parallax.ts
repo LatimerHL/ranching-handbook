@@ -21,10 +21,13 @@ const tiltAdoptSpan = (tiltRange + tiltDeadZone) * 1.4;
 // Below this much gravity on the screen plane the device is (almost) flat, where "how far back is it
 // tipped" has no answer. Samples are skipped instead of snapping.
 const tiltFlatness = 0.35;
+// A granted permission is not a working sensor: some devices (or a sensor claimed by another app)
+// hand out the permission and then send nothing. Giving up after this long keeps the switch honest.
+const tiltProbeMs = 1500;
 const tiltStorageKey = 'ranching-handbook-tilt';
 
 type Mode = 'pointer' | 'tilt';
-type TiltState = 'unknown' | 'granted' | 'denied' | 'unsupported' | 'insecure';
+type TiltState = 'unknown' | 'prompt' | 'granted' | 'denied' | 'unsupported' | 'insecure';
 
 type OrientationEvent = typeof DeviceOrientationEvent & {
   requestPermission?: () => Promise<PermissionState>;
@@ -110,14 +113,31 @@ function tiltShape(degrees: number) {
   return Math.sign(degrees) * reach * reach * (3 - 2 * reach);
 }
 
-// Asked on load, regardless of the user agent. iOS only answers inside a gesture, so a rejection
-// here is retried when the visitor first touches the page.
+// iOS and iPadOS are the only platforms where the sensor prompt has to be raised by a gesture. Chrome
+// also ships requestPermission, but it answers by itself, and asking on load there must not cost the
+// visitor a click. iPadOS reports itself as a Mac, so the touch count is what gives it away.
+function isAppleTouchDevice() {
+  if (/iP(hone|ad|od)/.test(navigator.userAgent)) return true;
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
+
+// iOS only raises the sensor prompt when requestPermission runs inside a gesture; anywhere else the
+// call fails without asking. So this decides whether the ask has to keep a tap in reserve.
+function tiltNeedsGesture() {
+  const api = window.DeviceOrientationEvent as OrientationEvent | undefined;
+  return isAppleTouchDevice() && typeof api?.requestPermission === 'function' && !motionBlockedByContext();
+}
+
+// Resolves the sensor permission. Callers only reach it on load where no gesture is needed, or from
+// inside a gesture where iOS insists the prompt belongs.
 async function askTiltPermission(): Promise<TiltState> {
   const api = window.DeviceOrientationEvent as OrientationEvent | undefined;
   if (motionBlockedByContext()) return 'insecure';
   // No sensor API at all (most desktops): leave the switch untouched instead of greying it out.
   if (!api) return 'unsupported';
-  if (typeof api.requestPermission !== 'function') return 'granted';
+  // Only iOS withholds the sensor until it says yes. Everywhere else the events simply arrive, so a
+  // "denied" from an unimplemented prompt must not disable the switch.
+  if (typeof api.requestPermission !== 'function' || !isAppleTouchDevice()) return 'granted';
 
   try {
     return await api.requestPermission() === 'granted' ? 'granted' : 'denied';
@@ -148,6 +168,16 @@ export function mountHomeParallax(hero: HTMLElement) {
   let mode: Mode = prefersTilt() ? 'tilt' : 'pointer';
   let tiltState: TiltState = 'unknown';
   let tiltEnabled = tiltPreference();
+  let listening = false;
+  let requesting = false;
+  // True while the visitor's click is waiting on an answer: the switch stays where they put it until
+  // the browser replies, then either the sensor proves itself or the switch goes back with a message.
+  let pendingAsk = false;
+  // True once a real sample has arrived. Until then the sensor is unproven, and nothing may claim the
+  // effect is running.
+  let dataSeen = false;
+  let probe: number | undefined;
+  let toastTimer: number | undefined;
   // The pose the device rests in: roll and pitch in degrees, filled in from the first few samples.
   let restRoll = 0;
   let restPitch = 0;
@@ -226,17 +256,64 @@ export function mountHomeParallax(hero: HTMLElement) {
     adopting = false;
   }
 
+  // On by default, but only claims to be on when the scene can actually move: the pointer is always
+  // there, and the sensor has to have spoken at least once. A switch left checked while nothing
+  // happens is worse than an honest "off".
+  function effectLive() {
+    return mode === 'pointer' || dataSeen;
+  }
+
   function syncToggle() {
-    const blocked = tiltState === 'denied';
-    const insecure = tiltState === 'insecure';
     if (toggle) {
-      toggle.checked = tiltEnabled && !blocked;
-      toggle.disabled = blocked;
+      toggle.checked = tiltEnabled && (effectLive() || pendingAsk);
+      // Never disabled and never dimmed by an answer: a no is not final, the visitor can ask again.
+      toggle.disabled = false;
     }
     const label = toggle?.closest('label');
-    label?.toggleAttribute('data-unavailable', blocked);
-    if (label && insecure) label.title = '需要通过 HTTPS 访问才能启用陀螺仪';
+    if (label && tiltState === 'insecure') label.title = '需要通过 HTTPS 访问才能启用倾斜动效';
+    else if (label && tiltState === 'denied') label.title = '运动与方向权限被拒绝，可再点一次重试';
+    else if (label && tiltState === 'unsupported') label.title = '这台设备没有运动与方向传感器';
+    else if (label && tiltState === 'prompt') label.title = '开启时会请求运动与方向权限';
     else label?.removeAttribute('title');
+  }
+
+  function persistTilt(on: boolean) {
+    try {
+      localStorage.setItem(tiltStorageKey, on ? 'on' : 'off');
+    } catch {
+      // Keep the choice for this page.
+    }
+  }
+
+  function showToast(message: string) {
+    let toast = document.querySelector<HTMLElement>('.home-tilt-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'home-tilt-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.append(toast);
+    }
+    toast.textContent = message;
+    toast.dataset.visible = '';
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toast?.removeAttribute('data-visible'), 5600);
+  }
+
+  // Watch the sensor for a moment. Silence means this device cannot feed the effect -- no gyroscope,
+  // or the sensor is claimed elsewhere -- so it goes off rather than sitting there doing nothing. The
+  // stored preference is left alone: the next load tries again instead of remembering a failure.
+  function probeSensor(announce: boolean) {
+    if (!tiltEnabled || dataSeen || probe !== undefined || mode !== 'tilt') return;
+    probe = window.setTimeout(() => {
+      probe = undefined;
+      if (dataSeen || controller.signal.aborted) return;
+      tiltEnabled = false;
+      if (toggle) toggle.checked = false;
+      settle();
+      syncToggle();
+      if (announce) showToast('这台设备读不到运动数据，基于设备运动的倾斜动效已关闭。');
+    }, tiltProbeMs);
   }
 
   function tilt({ alpha, beta, gamma }: DeviceOrientationEvent) {
@@ -245,6 +322,13 @@ export function mountHomeParallax(hero: HTMLElement) {
       .join(',');
     if (!tiltEnabled || mode !== 'tilt') return;
     if (beta === null || gamma === null || !Number.isFinite(beta) || !Number.isFinite(gamma)) return;
+    if (!dataSeen) {
+      // The switch may say "off" until this very sample; now it can say the truth.
+      dataSeen = true;
+      window.clearTimeout(probe);
+      probe = undefined;
+      syncToggle();
+    }
 
     const radians = screenRadians();
     const gravity = toScreen(gravityInDevice(beta, gamma), radians);
@@ -295,39 +379,63 @@ export function mountHomeParallax(hero: HTMLElement) {
     chaseTilt();
   }
 
-  function enableTilt() {
+  function enableTilt(announce = false) {
     if (tiltState !== 'granted') return;
-    window.addEventListener('deviceorientation', tilt, options);
+    if (!listening) {
+      listening = true;
+      window.addEventListener('deviceorientation', tilt, options);
+    }
+    probeSensor(announce);
   }
 
-  function requestTilt() {
+  function requestTilt(origin: 'load' | 'gesture' = 'gesture') {
+    if (requesting || tiltState === 'granted') return;
+    requesting = true;
+    if (origin === 'gesture') {
+      pendingAsk = true;
+      syncToggle();
+    }
     askTiltPermission().then(state => {
+      requesting = false;
+      pendingAsk = false;
       if (controller.signal.aborted) return;
+      // The ask made on load can only succeed quietly, for a site that was already allowed. Refused
+      // there it means "not decided yet", not "no": the state stays prompt for the tap that follows.
+      if (origin === 'load' && state === 'denied') {
+        tiltState = 'prompt';
+        syncToggle();
+        return;
+      }
       tiltState = state;
-      if (state === 'granted') enableTilt();
+      if (state === 'granted') {
+        if (origin === 'gesture') {
+          tiltEnabled = true;
+          persistTilt(true);
+          mode = 'tilt';
+          forgetPose();
+        }
+        enableTilt(origin === 'gesture');
+      } else if (origin === 'gesture') {
+        // Asked from a click, and still no permission: the effect stays off, and now says why. The
+        // answer is not treated as final -- nothing is remembered and nothing is disabled, so the
+        // next click asks again.
+        settle();
+        if (toggle) toggle.checked = false;
+        showToast(state === 'insecure'
+          ? '需要通过 HTTPS 访问才能启用倾斜动效。'
+          : state === 'unsupported'
+            ? '这台设备没有运动与方向传感器，基于设备运动的倾斜动效保持关闭。'
+            : '没有获得运动与方向权限，基于设备运动的倾斜动效保持关闭。可以再点一次重试；若一直失败，请在浏览器的网站设置里允许这项权限或重置站点数据。');
+      }
       syncToggle();
     });
   }
 
-  // iOS quietly ignores a prompt outside of a gesture, and some builds leave the returned promise
-  // pending forever instead of rejecting. Arm a one-shot gesture retry up front so the first tap or
-  // scroll always produces a real request.
-  const orientationApi = window.DeviceOrientationEvent as OrientationEvent | undefined;
-  if (typeof orientationApi?.requestPermission === 'function' && !motionBlockedByContext()) {
-    const retry = () => {
-      window.removeEventListener('pointerdown', retry);
-      window.removeEventListener('touchstart', retry);
-      if (controller.signal.aborted || tiltState === 'granted') return;
-      askTiltPermission().then(next => {
-        if (controller.signal.aborted) return;
-        tiltState = next;
-        if (next === 'granted') enableTilt();
-        syncToggle();
-      });
-    };
-    window.addEventListener('pointerdown', retry, { passive: true, signal: controller.signal });
-    window.addEventListener('touchstart', retry, { passive: true, signal: controller.signal });
-  }
+  // iOS prompts only from inside a gesture -- a click or a tap that ends, not the touch that starts
+  // one -- and the answer is remembered per site. The ask on load below is the quiet attempt (it can
+  // only succeed for a site that already said yes); the switch in the appearance panel is where the
+  // visitor asks for real, because a page that pounces with a permission dialog on the first tap
+  // anywhere is worse than one that simply starts with the effect off.
 
   window.addEventListener('pointermove', event => {
     if (!tiltEnabled || event.pointerType !== 'mouse') return;
@@ -335,6 +443,7 @@ export function mountHomeParallax(hero: HTMLElement) {
       mode = 'pointer';
       forgetPose();
       settle();
+      syncToggle();
     }
     move(2 * event.clientX / innerWidth - 1, 2 * event.clientY / innerHeight - 1);
   }, options);
@@ -346,6 +455,7 @@ export function mountHomeParallax(hero: HTMLElement) {
         mode = 'tilt';
         forgetPose();
         settle();
+        syncToggle();
       }
     }, options);
   }
@@ -364,27 +474,38 @@ export function mountHomeParallax(hero: HTMLElement) {
 
   toggle?.addEventListener('change', () => {
     tiltEnabled = toggle.checked;
-    try {
-      localStorage.setItem(tiltStorageKey, tiltEnabled ? 'on' : 'off');
-    } catch {
-      // Keep the choice for this page.
-    }
+    persistTilt(tiltEnabled);
     forgetPose();
     if (!tiltEnabled) {
       settle();
-    } else if (tiltState === 'denied') {
-      requestTilt();
     } else if (tiltState === 'granted') {
-      mode = 'tilt';
+      // Already allowed: nothing to ask, only a sensor left to prove.
+      enableTilt(true);
+    } else {
+      // The tap that flipped the switch is the gesture iOS wants, and the place to report back when
+      // the answer is no.
+      requestTilt('gesture');
     }
+    syncToggle();
   }, options);
 
-  requestTilt();
-  syncToggle();
+  if (tiltNeedsGesture()) {
+    // Nothing can move before the visitor says yes, so the switch starts off and says so. The quiet
+    // ask on load still runs: a site that was already allowed answers without a prompt.
+    tiltState = 'prompt';
+    syncToggle();
+    requestTilt('load');
+  } else {
+    requestTilt('load');
+    syncToggle();
+  }
 
   return () => {
     controller.abort();
     stop();
+    window.clearTimeout(probe);
+    window.clearTimeout(toastTimer);
+    document.querySelector('.home-tilt-toast')?.remove();
     if (frame !== undefined) cancelAnimationFrame(frame);
     for (const { layer } of targets) {
       delete layer.dataset.parallax;
