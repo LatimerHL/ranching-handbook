@@ -9,7 +9,7 @@ interface Props {
 }
 
 const { orientation, canvas, origin, background } = Astro.props;
-const { arc, sparks } = orientation === 'portrait' ? layouts.portrait : layouts.landscape;
+const { sparks } = orientation === 'portrait' ? layouts.portrait : layouts.landscape;
 const percent = (length: number, total: number) => `${length / total * 100}%`;
 const beams = [
   { angle: -165, width: 82, color: '#d9fbff' },
@@ -60,23 +60,6 @@ const particles = Array.from({ length: particleCount }, (_, index) => {
   };
 });
 
-// Landscape: a 1.2x ellipse centred on the frame, so the inverted mask lights the outer ring.
-// Portrait frames are tall, so the bloom gathers at the top instead: a dome centred on the top edge,
-// wide enough to run past both sides before it reaches the middle of the picture.
-const isPortraitFrame = orientation === 'portrait';
-const arcStyle = isPortraitFrame
-  ? {
-      left: '50%',
-      top: '0%',
-      width: percent(canvas.width * 1.9, canvas.width),
-      height: percent(canvas.height * 1.18, canvas.height),
-    }
-  : {
-      left: '50%',
-      top: '50%',
-      width: percent(canvas.width * 1.2, canvas.width),
-      height: percent(canvas.height * 1.2, canvas.height),
-    };
 ---
 
 <div class="home-light-accents" data-layer="light-accents" data-orientation={orientation} aria-hidden="true">
@@ -102,7 +85,6 @@ const arcStyle = isPortraitFrame
       ><span class="home-light-beam-ribbon"></span></span>
     );
   })}
-  <span class="home-light-arc" style={arcStyle}></span>
   </div>
   <div class="home-light-effect-field">
   {sparks.map(({ x, y, size, color }, index) => {
@@ -201,7 +183,7 @@ const arcStyle = isPortraitFrame
     position: absolute;
     inset: 0;
     rotate: var(--spark-tilt, 0deg);
-    filter: drop-shadow(0 0 4px var(--accent-color)) drop-shadow(0 0 9px var(--accent-color));
+    filter: drop-shadow(0 0 7px var(--accent-color));
   }
   .home-light-accent-shape::before {
     content: "";
@@ -252,42 +234,6 @@ const arcStyle = isPortraitFrame
     mask-image: linear-gradient(0deg, transparent, #0009 22%, #000 46%, #000 54%, #0009 78%, transparent);
   }
 
-  .home-light-arc {
-    position: absolute;
-    translate: -50% -50%;
-    opacity: 0;
-    /* Bright, low-saturation bloom: near-white core with a faint cool and warm edge. */
-    background: linear-gradient(180deg,
-      rgb(255 255 255 / .96),
-      rgb(226 249 255 / .92) 26%,
-      rgb(198 236 255 / .88) 52%,
-      rgb(226 226 255 / .82) 76%,
-      rgb(255 240 252 / .9));
-    mix-blend-mode: screen;
-    /* Wide, soft ring so the glow fades out instead of ending on a hard edge. */
-    --arc-band: radial-gradient(ellipse closest-side,
-      transparent 0%,
-      rgb(255 255 255 / .04) 30%,
-      rgb(255 255 255 / .16) 50%,
-      rgb(255 255 255 / .38) 68%,
-      rgb(255 255 255 / .62) 85%,
-      rgb(255 255 255 / .8) 100%);
-    mask-image: var(--arc-band);
-    filter: blur(12px);
-  }
-
-  /* Portrait frames are tall, so the bloom gathers at the top instead of ringing the edges:
-     a dome shaped falloff centred on the top edge, wide enough to run past both sides. */
-  .home-light-accents[data-orientation="portrait"] .home-light-arc {
-    --arc-band: radial-gradient(ellipse closest-side,
-      rgb(255 255 255 / .9) 0%,
-      rgb(255 255 255 / .66) 24%,
-      rgb(255 255 255 / .38) 46%,
-      rgb(255 255 255 / .16) 68%,
-      rgb(255 255 255 / .05) 85%,
-      transparent 100%);
-  }
-
   @media (prefers-reduced-motion: no-preference) {
     /* Fade the effect layer in alongside the key-art entrance once the images are ready. */
     :global(.home-key-art[data-entrance]) .home-light-accents {
@@ -295,7 +241,7 @@ const arcStyle = isPortraitFrame
       animation: home-light-accents-reveal var(--accents-reveal-duration, 1.35s) ease-out both;
     }
     /* Tilt with the pointer or gyroscope around the beam focus, so the light drifts with the scene.
-       Only the sparks and particles move; the beams and the breathing arc stay pinned to the sky. */
+       Only the sparks and particles move; the beams stay pinned to the sky. */
     .home-light-effect-field[data-parallax] {
       transform-origin: var(--beam-x, 50%) var(--beam-y, 50%);
       transition: transform var(--motion-medium) var(--ease-enter);
@@ -311,9 +257,6 @@ const arcStyle = isPortraitFrame
     }
     :global(.home-key-art[data-entrance]) .home-light-beam-ribbon {
       animation: home-light-beam-sweep var(--accent-duration) linear var(--accent-delay) infinite;
-    }
-    :global(.home-key-art[data-entrance]) .home-light-arc {
-      animation: home-light-arc-breathe 7.2s ease-in-out infinite;
     }
     :global(.home-key-art[data-entrance]) .home-particle-track {
       animation: home-particle-drift var(--particle-duration) cubic-bezier(.34, .05, .36, 1)
@@ -340,14 +283,11 @@ const arcStyle = isPortraitFrame
     54% { opacity: var(--beam-peak); }
     76%, 100% { translate: 171% 0; opacity: 0; }
   }
-  @keyframes home-light-arc-breathe {
-    0%, 100% { opacity: .08; filter: blur(30px); scale: .96; }
-    50% { opacity: .62; filter: blur(8px); scale: 1.05; }
-  }
   @keyframes home-particle-drift {
     0% { translate: var(--particle-start) 0; scale: .42; opacity: 0; }
     10% { opacity: var(--particle-alpha); }
     62% { opacity: var(--particle-alpha); }
     100% { translate: var(--particle-distance) 0; scale: 1.55; opacity: 0; }
   }
+
 </style>

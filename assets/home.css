@@ -5,7 +5,8 @@
 }
 
 .home {
-  --cover-base: #edf3ff;
+  --cover-base: #a9d5ea;
+  --key-art-backdrop: linear-gradient(180deg, #9fc9e6 0%, #b6dcee 32%, #a3cee2 60%, #7fa9c6 100%);
   --cover-tint: transparent;
   --cover-subtitle: #fff4cd;
   --cover-loading-ink: #2d254c;
@@ -19,6 +20,7 @@
 
 .home[data-theme="dark"] {
   --cover-base: #1b1530;
+  --key-art-backdrop: linear-gradient(180deg, #241c3f 0%, #1b1530 55%, #120e24 100%);
   --cover-tint: #100b302e;
   --cover-subtitle: #e5d8ff;
   --cover-loading-ink: #f0eaff;
@@ -36,12 +38,19 @@
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: clamp(.75rem, 3vh, 2rem);
+  /* Keep the artwork running behind Safari's floating bottom toolbar: the *large* viewport is
+     the full screen, while dvh stops above the bar. The extra bottom padding below reserves the
+     bar's height so the copy still clears it. */
+  --toolbar-inset: clamp(0px, calc(100lvh - 100dvh), 11rem);
   block-size: 100vh;
-  block-size: 100dvh;
+  block-size: 100lvh;
   padding: max(1rem, env(safe-area-inset-top))
     max(var(--gutter), env(safe-area-inset-right))
     max(clamp(.75rem, 3vh, 2rem), env(safe-area-inset-bottom))
     max(var(--gutter), env(safe-area-inset-left));
+  padding-block-end: calc(
+    max(clamp(.75rem, 3vh, 2rem), env(safe-area-inset-bottom)) + var(--toolbar-inset)
+  );
 }
 
 .home-hero:is([data-loading], [data-load-error]) .motion-rise { animation-name: none; }
@@ -71,6 +80,8 @@
   opacity: 0;
 }
 
+.home-hero { touch-action: pan-y; }
+
 .home-sidebar-scrim {
   position: absolute;
   inset: 0;
@@ -81,7 +92,10 @@
   transition: opacity var(--motion-medium) var(--ease-enter);
 }
 .home[data-theme="dark"] .home-sidebar-scrim { z-index: 1; }
-.home-hero:has(.home-menu:popover-open) .home-sidebar-scrim { opacity: var(--drawer-progress, 1); }
+.home-hero:has(.home-menu:is(:popover-open, .is-open)) .home-sidebar-scrim { opacity: 1; }
+.home-hero[data-drawer-dragging]:has(.home-menu:is(:popover-open, .is-open)) .home-sidebar-scrim {
+  opacity: var(--drawer-progress, 1);
+}
 .home-hero[data-drawer-dragging] .home-sidebar-scrim {
   opacity: var(--drawer-progress, 0);
   transition: none;
@@ -140,4 +154,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .home-hero::before, .home-hero::after, .home-sidebar-scrim { transition: none; }
+}
+
+/* The hero is a fixed full-viewport canvas: text selection only fights the drag gestures and the
+   cursor, so the home page opts out of it. Form controls keep normal text behaviour. */
+html.home,
+html.home * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html.home :is(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
 }

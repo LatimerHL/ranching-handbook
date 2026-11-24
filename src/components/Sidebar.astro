@@ -27,124 +27,102 @@ const links = [
 </nav>
 
 <script>
+  import { closePopover, isPopoverOpen, openPopover } from '../scripts/input-shim';
+
+  /** Distance from the left edge where an opening swipe may start. */
   const edgeWidth = 120;
-  const intentDistance = 9;
-  const flickSpeed = .5;
-  const velocityWindow = 100;
-  let drag;
-  let suppressClickUntil = 0;
+  /** Horizontal travel before a press turns into a drag. */
+  const intent = 8;
+  /** Leftward travel that commits a close. */
+  const closeDistance = 64;
+  /** Rightward travel that commits an open (starting from the edge). */
+  const openDistance = 64;
 
-  function draw(state, x, time) {
-    state.offset = Math.max(-state.width, Math.min(0, state.initialOffset + x - state.startX));
-    state.hero.style.setProperty('--drawer-offset', state.offset + 'px');
-    state.hero.style.setProperty('--drawer-progress', String(1 + state.offset / state.width));
-    state.samples.push({ x, time });
-    while (state.samples.length > 1 && time - state.samples[0].time > velocityWindow) {
-      state.samples.shift();
-    }
+  const drawer = document.getElementById('home-menu');
+  const hero = document.querySelector('.home-hero');
+
+  interface Gesture {
+    startX: number;
+    startY: number;
+    wasOpen: boolean;
+    width: number;
+    moved: boolean;
+    dx: number;
   }
 
-  function finish(open) {
-    const state = drag;
-    drag = null;
-    if (!state?.width || !state.hero.isConnected) return;
+  if (drawer && hero) {
+    let gesture: Gesture | null = null;
+    let pointerId: number | undefined;
 
-    const { hero, sidebar } = state;
-    // Commit the last drag position before handing it back to the CSS transition.
-    sidebar.getBoundingClientRect();
-    sidebar.inert = false;
-    if (open && !sidebar.matches(':popover-open')) sidebar.showPopover();
-    if (!open && sidebar.matches(':popover-open')) sidebar.hidePopover();
-    hero.removeAttribute('data-drawer-dragging');
-    hero.style.removeProperty('--drawer-offset');
-    hero.style.removeProperty('--drawer-progress');
-  }
+    drawer.inert = !isPopoverOpen(drawer);
 
-  document.addEventListener('touchstart', event => {
-    if (drag) finish(drag.open);
-    suppressClickUntil = 0;
-    const { target, touches } = event;
-    if (touches.length !== 1 || !(target instanceof Element)) return;
-
-    const hero = target.closest('.home-hero');
-    const sidebar = hero?.querySelector('#home-menu');
-    if (!sidebar) return;
-    const open = sidebar.matches(':popover-open');
-    const { identifier, clientX, clientY } = touches[0];
-    if (!open && (clientX > edgeWidth || target.closest('a, button, input, label'))) return;
-
-    drag = {
-      identifier, startX: clientX, startY: clientY, hero, sidebar, open,
-      width: 0, initialOffset: 0, offset: 0, samples: [{ x: clientX, time: event.timeStamp }],
+    const paint = (g: Gesture) => {
+      // Closing: the drawer slides from 0 to -width. Opening: from -width to 0. Either way the
+      // panel must track the finger pixel for pixel, so the raw travel drives the offset directly.
+      const width = g.width || drawer.offsetWidth || 1;
+      const offset = g.wasOpen ? Math.min(0, g.dx) : Math.min(0, -width + Math.max(0, g.dx));
+      const clamped = Math.max(-width, offset);
+      hero.style.setProperty('--drawer-offset', clamped + 'px');
+      hero.style.setProperty('--drawer-progress', String(1 + clamped / width));
     };
-  }, { passive: true });
 
-  function move(event) {
-    if (!drag) return;
-    const touch = event.touches[0];
-    if (event.touches.length !== 1 || touch.identifier !== drag.identifier) {
-      finish(drag.open);
-      return;
-    }
-    const { hero, sidebar, open } = drag;
-    if (!drag.width) {
-      const dx = touch.clientX - drag.startX;
-      const dy = Math.abs(touch.clientY - drag.startY);
-      if (dy >= intentDistance && dy > Math.abs(dx)) {
-        drag = null;
+    const settle = (open: boolean) => {
+      hero.removeAttribute('data-drawer-dragging');
+      hero.style.removeProperty('--drawer-offset');
+      hero.style.removeProperty('--drawer-progress');
+      gesture = null;
+      pointerId = undefined;
+      if (open) openPopover(drawer);
+      else closePopover(drawer);
+      drawer.inert = !open;
+    };
+
+    window.addEventListener('pointerdown', event => {
+      const x = event.clientX;
+      const y = event.clientY;
+      const open = isPopoverOpen(drawer);
+      if (open) {
+        if (x > drawer.getBoundingClientRect().right + 8) return;
+      } else if (x > edgeWidth) {
         return;
       }
-      const distance = open ? -dx : dx;
-      if (distance < intentDistance || distance < dy * 1.25) return;
+      gesture = { startX: x, startY: y, wasOpen: open, width: drawer.offsetWidth, moved: false, dx: 0 };
+      pointerId = event.pointerId;
+    }, { passive: true, capture: true });
 
-      const restingOffset = open ? sidebar.getBoundingClientRect().left : 0;
-      hero.setAttribute('data-drawer-dragging', '');
-      sidebar.inert = !open;
-      drag.width = sidebar.offsetWidth;
-      drag.initialOffset = open ? restingOffset : -drag.width;
-    }
-    if (event.cancelable) event.preventDefault();
-    draw(drag, touch.clientX, event.timeStamp);
+    window.addEventListener('pointermove', event => {
+      const g = gesture;
+      if (!g || event.pointerId !== pointerId) return;
+      const dx = event.clientX - g.startX;
+      const dy = event.clientY - g.startY;
+      if (!g.moved) {
+        if (Math.abs(dx) < intent || Math.abs(dx) <= Math.abs(dy)) return;
+        g.moved = true;
+        if (!g.wasOpen) {
+          openPopover(drawer);
+          g.width = drawer.offsetWidth;
+        }
+        hero.setAttribute('data-drawer-dragging', '');
+      }
+      g.dx = dx;
+      paint(g);
+    }, { passive: true, capture: true });
+
+    const end = (event: PointerEvent) => {
+      const g = gesture;
+      if (!g || event.pointerId !== pointerId) return;
+      const raw = event.clientX - g.startX;
+      if (!g.moved) {
+        gesture = null;
+        pointerId = undefined;
+        return;
+      }
+      // Opening drags travel right, closing drags travel left; judge each by its own axis.
+      if (g.wasOpen) settle(raw > -closeDistance);
+      else settle(raw >= openDistance);
+    };
+
+    window.addEventListener('pointerup', end, { passive: true, capture: true });
+    window.addEventListener('pointercancel', end, { passive: true, capture: true });
   }
-
-  function bindDragSurface() {
-    document.querySelector('.home-hero')?.addEventListener('touchmove', move, { passive: false });
-  }
-
-  bindDragSurface();
-  document.addEventListener('astro:after-swap', bindDragSurface);
-
-  document.addEventListener('touchend', event => {
-    if (!drag) return;
-    const touch = event.changedTouches[0];
-    if (!drag.width || event.touches.length || touch?.identifier !== drag.identifier) {
-      finish(drag.open);
-      return;
-    }
-    draw(drag, touch.clientX, event.timeStamp);
-    const first = drag.samples[0];
-    const velocity = (touch.clientX - first.x) / Math.max(1, event.timeStamp - first.time);
-    const flick = Math.abs(velocity) >= flickSpeed && Math.abs(touch.clientX - drag.startX) >= 20;
-    const open = flick ? velocity > 0 : drag.offset >= -drag.width / 2;
-
-    suppressClickUntil = performance.now() + 400;
-    finish(open);
-  }, { passive: true });
-
-  // Some browsers can synthesize a click after the swipe ends.
-  document.addEventListener('click', event => {
-    if (performance.now() > suppressClickUntil || !event.detail || (event.pointerType && event.pointerType !== 'touch')) return;
-    suppressClickUntil = 0;
-    event.preventDefault();
-    event.stopPropagation();
-  }, { capture: true });
-
-  document.addEventListener('touchcancel', () => {
-    if (drag) finish(drag.open);
-  }, { passive: true });
-
-  document.addEventListener('astro:before-preparation', () => {
-    if (drag) finish(false);
-    document.querySelector('#home-menu:popover-open')?.hidePopover();
-  });
 </script>

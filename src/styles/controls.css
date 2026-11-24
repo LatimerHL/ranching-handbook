@@ -1,5 +1,5 @@
 :root {
-  --control-surface: #f6f0ffcc;
+  --control-surface: #f6f0fff2;
   --control-ink: #251741;
   --control-accent: #573a91;
   --control-border: #40216c38;
@@ -15,7 +15,7 @@
 }
 
 :root[data-theme="dark"] {
-  --control-surface: #241744b8;
+  --control-surface: #241744f2;
   --control-ink: #fff;
   --control-accent: #ffe5af;
   --control-border: #ffffff38;
@@ -26,8 +26,10 @@
 .home-icon-button, .home-menu, .home-theme {
   color: var(--control-ink);
   border: 1px solid var(--control-border);
+  /* No backdrop-filter: on mobile the drawer and the appearance panel re-blur the whole
+     scene every frame while they slide in, which is the single biggest source of jank.
+     A denser surface reads almost the same and costs nothing. */
   background: var(--control-surface);
-  backdrop-filter: blur(20px) saturate(1.18);
   box-shadow: 0 8px 28px var(--control-shadow);
 }
 
@@ -77,8 +79,12 @@
   .home-icon-button:hover { --tooltip-opacity: 1; --tooltip-delay: 120ms; }
 }
 
-.home-hero:has(.home-menu:popover-open) .home-menu-toggle,
-.home-actions:has(.home-theme:popover-open) .home-theme-toggle {
+/* 混合设备（安卓平板外接鼠标等）的 any-hover 常报 none，这里按真实输入事件放行。 */
+html[data-input="mouse"] .home-icon-button:hover,
+.home-icon-button[data-hover] { --tooltip-opacity: 1; --tooltip-delay: 120ms; }
+
+.home-hero:has(.home-menu:is(:popover-open, .is-open)) .home-menu-toggle,
+.home-actions:has(.home-theme:is(:popover-open, .is-open)) .home-theme-toggle {
   --tooltip-opacity: 0;
   --tooltip-delay: 0ms;
 }
@@ -101,34 +107,37 @@
   max-block-size: none;
   overflow: auto;
   overscroll-behavior: contain;
+  /* Keep horizontal swipes for the close-drag: without this the scroll container claims them, the
+     browser fires pointercancel and the drawer never follows the finger. */
+  touch-action: pan-y;
   border-width: 0 1px 0 0;
   padding: max(.9rem, env(safe-area-inset-top)) .9rem
     max(.9rem, env(safe-area-inset-bottom)) max(.9rem, env(safe-area-inset-left));
-  translate: -100%;
+  transform: translate3d(-100%, 0, 0);
   opacity: 0;
-  transition: translate var(--slide-duration) var(--slide-easing), opacity var(--slide-duration) var(--slide-easing);
-  transition: translate var(--slide-duration) var(--slide-easing), opacity var(--slide-duration) var(--slide-easing),
-    display var(--slide-duration) allow-discrete, overlay var(--slide-duration) allow-discrete;
+  visibility: hidden;
+  /* transform + opacity + a delayed visibility flip is the most portable entry/exit pair there is:
+     no @starting-style, no allow-discrete, no `translate`/`scale` property support needed. */
+  transition: transform var(--slide-duration) var(--slide-easing),
+    opacity var(--slide-duration) var(--slide-easing),
+    visibility 0s linear var(--slide-duration);
 }
 
-.home-menu:popover-open {
+.home-menu:is(:popover-open, .is-open) {
   --slide-duration: var(--motion-long);
   --slide-easing: var(--ease-enter);
-  translate: 0;
+  transform: translate3d(0, 0, 0);
   opacity: 1;
-}
-
-@starting-style {
-  .home-menu:popover-open {
-    translate: -100%;
-    opacity: 0;
-  }
+  visibility: visible;
+  transition: transform var(--slide-duration) var(--slide-easing),
+    opacity var(--slide-duration) var(--slide-easing),
+    visibility 0s linear 0s;
 }
 
 .home-hero[data-drawer-dragging] .home-menu {
-  display: block;
+  visibility: visible;
   z-index: 3;
-  translate: var(--drawer-offset, -100%);
+  transform: translate3d(var(--drawer-offset, -100%), 0, 0);
   opacity: 1;
   transition: none;
   pointer-events: none;
@@ -165,8 +174,10 @@
   color: inherit;
   text-decoration: none;
 }
-.home-icon-button:hover { background-color: color-mix(in srgb, var(--control-surface) 86%, var(--control-accent)); }
-.home-menu a:hover, .home-menu-heading button:hover { background-color: var(--control-hover); }
+.home-icon-button:hover,
+.home-icon-button[data-hover] { background-color: color-mix(in srgb, var(--control-surface) 86%, var(--control-accent)); }
+.home-menu a:hover, .home-menu-heading button:hover,
+.home-menu a[data-hover], .home-menu-heading button[data-hover] { background-color: var(--control-hover); }
 .home-icon-button:focus-visible, :is(.home-menu, .home-theme) :focus-visible {
   outline: 2px solid var(--control-accent);
   outline-offset: 2px;
@@ -188,25 +199,22 @@
   border-radius: .875rem;
   padding: .7rem;
   transform-origin: top right;
-  translate: 0 -.5rem;
-  scale: .94;
+  transform: translate3d(0, -.5rem, 0) scale(.94);
   opacity: 0;
-  transition: translate var(--popover-duration) var(--ease-enter),
-    scale var(--popover-duration) var(--ease-enter), opacity var(--popover-duration) ease,
-    display var(--popover-duration) allow-discrete, overlay var(--popover-duration) allow-discrete;
+  visibility: hidden;
+  transition: transform var(--popover-duration) var(--ease-enter),
+    opacity var(--popover-duration) ease,
+    visibility 0s linear var(--popover-duration);
 }
-.home-theme:popover-open {
+
+.home-theme:is(:popover-open, .is-open) {
   --popover-duration: var(--motion-medium);
-  translate: 0 0;
-  scale: 1;
+  transform: translate3d(0, 0, 0) scale(1);
   opacity: 1;
-}
-@starting-style {
-  .home-theme:popover-open {
-    translate: 0 -.5rem;
-    scale: .94;
-    opacity: 0;
-  }
+  visibility: visible;
+  transition: transform var(--popover-duration) var(--ease-enter),
+    opacity var(--popover-duration) ease,
+    visibility 0s linear 0s;
 }
 .home-theme fieldset { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
 .home-theme legend {
@@ -247,31 +255,38 @@
   rotate: 45deg;
   opacity: 0;
 }
-.home-theme label:hover, .home-theme label:has(input:checked) { background: var(--control-hover); }
+.home-theme label:hover, .home-theme label:has(input:checked),
+.home-theme label[data-hover] { background: var(--control-hover); }
 .home-theme label:has(input:checked) { color: var(--control-accent); font-weight: 650; }
 .home-theme label:has(input:checked)::after { opacity: 1; }
 .home-theme label:has(input:focus-visible) { outline: 2px solid var(--control-accent); outline-offset: 2px; }
 
-.home-tilt-control {
+.home-theme-motion {
   border-block-start: 1px solid var(--control-border);
   margin-block-start: .45rem;
   padding-block-start: .45rem;
 }
-.home-tilt-control button {
-  inline-size: 100%;
-  border: 0;
-  border-radius: .45rem;
-  padding: .55rem .65rem;
-  color: var(--control-accent);
-  background: var(--control-hover);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-.home-tilt-control button:disabled { cursor: default; }
-.home-tilt-control p { margin: .35rem .65rem 0; font-size: .75rem; }
-.home-tilt-control p:empty { margin: 0; }
+.home-theme label[data-unavailable] { opacity: .5; cursor: default; }
 
 @media (prefers-reduced-motion: reduce) {
   .home-menu, .home-theme, .home-icon-button::after { transition: none; }
+}
+
+/* Live backdrop blur costs a background re-blur every frame while a popover slides, so it stays
+   at the cheap end: one 14px pass, no saturation boost. */
+.home-icon-button,
+.home-menu,
+.home-theme {
+  backdrop-filter: blur(14px) saturate(1.1);
+}
+
+/* The shim keeps the panels in the layout at all times (closed = visibility:hidden) so the exit
+   transition can run; they are plain boxes here, so they also need their own stacking order. */
+[popover] {
+  display: block;
+  z-index: 5;
+}
+
+.home-sidebar-scrim {
+  z-index: 4;
 }
