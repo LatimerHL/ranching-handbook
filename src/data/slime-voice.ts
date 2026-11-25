@@ -4,9 +4,9 @@
  *
  * Paths are relative to `assets/home-scene/voice/`. The clips are AAC-LC in MP4 containers,
  * encoded at 48 kbps mono from the game's mono WAVs; a clip that more than one slime
- * shares lives in `shared/` once and every user points at that single file. The home page fetches
- * them as part of its loading step (see `home-slime-voice.ts`), so the first poke has nothing to
- * wait for -- unless the visitor asked to save data, in which case the clip loads on that poke.
+ * shares lives in `shared/` once and every user points at that single file. Head and tail
+ * silence is trimmed at build time. Clips are fetched during the page-loading step, so the
+ * first poke plays from memory.
  */
 export const slimeVoices: Record<string, string[]> = {
   angler: ['angler/vo_angler_alarm_02.m4a', 'angler/vo_angler_fear_01.m4a', 'angler/vo_angler_fear_02.m4a'],
