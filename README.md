@@ -9,6 +9,16 @@
 
 通用动效在 `src/styles/motion.css` 中定义。`motion-rise` 用于内容淡入上移，`motion-feedback` 用于按钮和链接的按压反馈。
 
+## 首页音频
+
+首页的史莱姆被点击时会随机播放自己的叫声。音频放在 `assets/home-scene/voice/<史莱姆>/`，统一为 AAC-LC 封装在 MP4 里（`.m4a`）、单声道 44.1 kHz、48 kbps；多只史莱姆共用的片段只存一份，放在 `voice/shared/`，由各自的列表指向同一个文件。新增或替换音频时按同一配方转码：
+
+```sh
+ffmpeg -i clip.wav -ac 1 -ar 44100 -c:a aac -profile:a aac_low -b:a 48k -movflags +faststart -map_metadata -1 clip.m4a
+```
+
+再把文件名加进 `src/data/slime-voice.ts` 中对应史莱姆的列表（路径相对 `assets/home-scene/voice/`）。音频在首页的加载阶段就开始拉取（整只首页约 218 KB，与画面一起算进加载遮罩），所以第一次点击就是即时的；开启"节省流量"的浏览器会跳过预取，等到点击时再取那一小段。
+
 ## 本地预览
 
 ```sh

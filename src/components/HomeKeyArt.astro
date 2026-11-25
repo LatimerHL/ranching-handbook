@@ -2,6 +2,8 @@
 import { sitePath } from '../site.mjs';
 import landscape from '../data/home-scene.json';
 import portrait from '../data/home-scene-portrait.json';
+import { slimeRigs } from '../data/slime-parts';
+import { slimeVoices } from '../data/slime-voice';
 import HomeLightAccents from './HomeLightAccents.astro';
 
 type Dimensions = { width: number; height: number };
@@ -34,6 +36,10 @@ const idleDepths: Record<string, number> = {
 };
 const idleDepthOf = (layer: Layer) => idleDepths[layer.motion ?? layer.id] ?? 0;
 const percent = (size: number, total: number) => (size / total * 100) + '%';
+// The slimes that ship as cut-outs are assembled from parts: one image per layer, all on the same
+// canvas, so the wrapper inherits the flat sprite's geometry and the parts stay registered to it.
+const partSrc = (item: string, layer: string) => `${assets}parts/${item}/${layer}.webp`;
+const faceLayers = ['eyes', 'wink'] as const;
 const position = (rect: Rect, canvas: Dimensions) => ({
   left: percent(rect.x, canvas.width),
   top: percent(rect.y, canvas.height),
@@ -90,6 +96,17 @@ const scenes: { orientation: string; scene: Scene; beam: Point; background: Rect
 const assetId = (file: string) => file.replace(/^bubbles-clarified\//, 'bubbles/');
 const assetsByPieceId = new Map<string, string>();
 
+// A slime's voices live under its item id, which is the sprite name minus the folder and the
+// `-slime` suffix: `foreground/slimes/cotton-slime.webp` -> `cotton`. The sea hen, the pogofruit and
+// the plorts have no voice library, so they simply carry no `data-voice` and stay silent.
+const voiceBase = assets + 'voice/';
+const slimeOf = (file: string) =>
+  (file.split('/').pop() ?? '').replace(/\.(?:png|webp)$/, '').replace(/-?slime$/, '');
+const voiceOf = (file: string) => {
+  const item = slimeOf(file);
+  return slimeVoices[item] ? item : undefined;
+};
+
 for (const { orientation, scene } of scenes) {
   const pieceIds = new Set<string>();
 
@@ -110,7 +127,7 @@ for (const { orientation, scene } of scenes) {
 ---
 
 {scenes.map(({ orientation, scene, beam, background }) => (
-  <div class="home-key-art" data-orientation={orientation} aria-hidden="true">
+  <div class="home-key-art" data-orientation={orientation} data-voice-src={voiceBase} aria-hidden="true">
     <div class="home-key-art-frame" style={frameStyle(scene, beam)}>
       {scene.layers.map(layer => (
         <>
@@ -151,12 +168,52 @@ for (const { orientation, scene } of scenes) {
                   transform: piece.mirrorX ? 'translateX(100%) scaleX(-1)' : undefined,
                   opacity: piece.opacity,
                 };
-                const artwork = (
+                const rig = piece.tint ? undefined : slimeRigs[piece.file];
+                const artwork = rig ? (
+                  // The rig wrapper is the piece: it carries the geometry the flat sprite used to
+                  // carry, so the idle breathing and the pointer parallax still move one body, not
+                  // a stack of parts that each breathe on their own.
+                  <span
+                    class="home-key-art-piece home-key-art-rig"
+                    data-piece-id={piece.id}
+                    data-asset-id={assetId(piece.file)}
+                    data-rig={rig.item}
+                    data-voice={voiceOf(piece.file)}
+                    style={{ ...placement, filter: piece.filter }}
+                  >
+                    {rig.layers.map(part => (
+                      <img
+                        class="home-key-art-part"
+                        data-part={part}
+                        data-hidden={rig.hidden?.includes(part) ? '' : undefined}
+                        src={partSrc(rig.item, part)}
+                        alt=""
+                        width={Math.round(piece.width)}
+                        height={Math.round(piece.height)}
+                        decoding="async"
+                      />
+                    ))}
+                    {/* Both faces stay in the document so a blink can swap them without a request. */}
+                    {faceLayers.map(face => (
+                      <img
+                        class={`home-key-art-part home-key-art-face home-key-art-face--${face}`}
+                        data-face={face}
+                        data-visible={face === (rig.face ?? 'eyes') ? '' : undefined}
+                        src={partSrc(rig.item, face)}
+                        alt=""
+                        width={Math.round(piece.width)}
+                        height={Math.round(piece.height)}
+                        decoding="async"
+                      />
+                    ))}
+                  </span>
+                ) : (
                   <>
                     <img
                       class="home-key-art-piece"
                       data-piece-id={piece.id}
                       data-asset-id={assetId(piece.file)}
+                      data-voice={voiceOf(piece.file)}
                       src={src}
                       alt=""
                       width={Math.round(piece.width)}
@@ -315,6 +372,18 @@ for (const { orientation, scene } of scenes) {
   }
   .home-key-art[data-orientation="portrait"] .home-key-art-frame { container-type: inline-size; }
   .home-key-art-piece { position: absolute; transform-origin: top left; }
+  /* The artwork is a decorative backdrop and lets the pointer fall through. The slimes are the one
+     exception: a poke is a click, and the piece has to be a hit target to hear it. */
+  .home-key-art-piece[data-voice] { pointer-events: auto; }
+  /* Every layer of a cut-out slime is drawn on the flat sprite's canvas, so the parts only have to
+     fill the wrapper the sprite used to fill. */
+  .home-key-art-rig { display: block; }
+  .home-key-art-rig > .home-key-art-part { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* The resting face is the only one painted; the other stays decoded underneath, ready to swap in. */
+  .home-key-art-face:not([data-visible]) { opacity: 0; }
+  /* Parts a rig keeps tucked away (the ringtail's tongue) are decoded and stacked, but unpainted
+     until something marks them visible. */
+  .home-key-art-part[data-hidden]:not([data-visible]) { opacity: 0; }
   .home-key-art-tint { mask: var(--sprite) center / 100% 100% no-repeat; }
   .home-key-art-ray { position: absolute; transform-origin: var(--ray-x) var(--ray-y); }
   .home-key-art-ray > .home-key-art-piece { inset: 0; width: 100%; height: 100%; }

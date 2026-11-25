@@ -6,136 +6,136 @@
       "id": "background",
       "frame": {"x": -548, "y": -603, "width": 2119, "height": 2119, "canvas": {"width": 1254, "height": 1254}},
       "elements": [
-        {"id": "sky-background", "file": "hero-scene-layer-5-square.png", "x": 0, "y": 0, "width": 1254, "height": 1254},
-        {"id": "portrait-background-mask", "file": "poster-background-mask-v8.png", "x": 0, "y": 0, "width": 1254, "height": 1254}
+        {"id": "sky-background", "file": "hero-scene-layer-5-square.webp", "x": 0, "y": 0, "width": 1254, "height": 1254},
+        {"id": "portrait-background-mask", "file": "poster-background-mask-v8.webp", "x": 0, "y": 0, "width": 1254, "height": 1254}
       ]
     },
     {
       "id": "bubbles",
       "elements": [
-        {"id": "bubble-cyan-top-left", "file": "bubbles-clarified/10-left-cyan-tiny.png", "x": 49.3, "y": 49.6, "width": 24.6, "height": 29.0, "rotation": 7, "opacity": 0.24, "filter": "blur(.045cqw)"},
-        {"id": "bubble-pink-top-left", "file": "bubbles-clarified/01-left-pink-upper-large.png", "x": 258.4, "y": 36.4, "width": 18.6, "height": 30.0, "rotation": 8, "opacity": 0.47, "filter": "blur(.11cqw)"},
-        {"id": "bubble-yellow-matte", "file": "bubbles-clarified/11-right-yellow-matte.png", "x": 743, "y": 68, "width": 20, "height": 30, "opacity": 0.8},
-        {"id": "bubble-cyan-top-right", "file": "bubbles-clarified/10-left-cyan-tiny.png", "x": 821, "y": 115, "width": 12, "height": 16, "opacity": 0.64},
-        {"id": "bubble-purple-sky-left", "file": "bubbles-clarified/07-left-purple-matte.png", "x": 126, "y": 189, "width": 37, "height": 38, "opacity": 0.69},
-        {"id": "bubble-pale-blue", "file": "bubbles-clarified/12-right-pale-blue.png", "x": 819.2, "y": 231.6, "width": 59.3, "height": 45.6, "rotation": -43, "opacity": 0.92, "filter": "saturate(1.93) brightness(.94) drop-shadow(.25cqw -.28cqw .12cqw #effafff7) blur(.10cqw)"},
-        {"id": "bubble-pale-blue-small", "file": "bubbles-clarified/12-right-pale-blue.png", "x": 819.0, "y": 245.3, "width": 28.8, "height": 28.0, "opacity": 0.92, "filter": "drop-shadow(-.14cqw -.14cqw .12cqw #effaffa7) blur(.07cqw)"},
-        {"id": "bubble-pink-pair-large", "file": "bubbles-clarified/14-right-pink-pair-large.png", "x": 732.8, "y": 281.8, "width": 48.8, "height": 48.5, "rotation": -7, "filter": "drop-shadow(-.16cqw -.22cqw .10cqw #fff3ffdc)"},
-        {"id": "bubble-pink-pair-small", "file": "bubbles-clarified/15-right-pink-pair-small.png", "x": 778.6, "y": 297.1, "width": 28.1, "height": 30.4, "rotation": -18, "filter": "saturate(1.21) drop-shadow(-.10cqw -.17cqw .10cqw #fff3ffe5) blur(.06cqw)"},
-        {"id": "bubble-pink-upper-large", "file": "bubbles-clarified/01-left-pink-upper-large.png", "x": 510, "y": 298, "width": 23, "height": 31, "opacity": 0.83},
-        {"id": "bubble-pink-tiny", "file": "bubbles-clarified/06-left-pink-tiny.png", "x": 7.3, "y": 358.6, "width": 33.1, "height": 29.3, "rotation": -4, "opacity": 0.96},
-        {"id": "bubble-cyan-by-bat", "file": "bubbles-clarified/10-left-cyan-tiny.png", "x": 414.1, "y": 338.5, "width": 27.0, "height": 32.0, "rotation": 8, "opacity": 0.81, "filter": "hue-rotate(8deg) brightness(.94) blur(.11cqw)"},
-        {"id": "bubble-pink-below-bat", "file": "bubbles-clarified/08-left-pink-lower.png", "x": 302.2, "y": 418.5, "width": 44.7, "height": 54.3, "rotation": 24, "opacity": 0.94, "filter": "blur(.13cqw)"},
-        {"id": "bubble-blue-by-ringtail", "file": "bubbles-clarified/03-left-blue.png", "x": 172.1, "y": 440.5, "width": 41.1, "height": 48.0, "rotation": -4, "filter": "saturate(1.09) brightness(.97) blur(.10cqw)"},
-        {"id": "bubble-cyan-left", "file": "bubbles-clarified/05-left-cyan.png", "x": 1.0, "y": 462.9, "width": 43.8, "height": 46.7, "rotation": -14, "filter": "brightness(.96) drop-shadow(.26cqw -.19cqw .11cqw #bbf1fbc9)"},
-        {"id": "bubble-blue-behind-cotton", "file": "bubbles-clarified/03-left-blue.png", "x": 630.5, "y": 533.8, "width": 68, "height": 61, "mirrorX": true, "filter": "blur(.11cqw)", "opacity": 0.96},
-        {"id": "bubble-purple-by-pink", "file": "bubbles-clarified/07-left-purple-matte.png", "x": 18, "y": 609, "width": 65, "height": 61},
-        {"id": "bubble-pink-behind-pink-slime", "file": "bubbles-clarified/04-left-pink-rounded.png", "x": 256.9, "y": 666.2, "width": 31.3, "height": 27.9, "rotation": 20, "opacity": 0.92, "filter": "saturate(.70) blur(.26cqw)"},
-        {"id": "bubble-purple-pair-large", "file": "bubbles-clarified/16-right-purple-pair-large.png", "x": 847.5, "y": 689.2, "width": 58.7, "height": 59.2, "rotation": -9, "filter": "saturate(1.08)"},
-        {"id": "bubble-pink-lower", "file": "bubbles-clarified/08-left-pink-lower.png", "x": 17.3, "y": 683.1, "width": 47.6, "height": 40.7, "rotation": 5},
-        {"id": "bubble-purple-pair-small", "file": "bubbles-clarified/17-right-purple-pair-small.png", "x": 830.4, "y": 716.1, "width": 18.8, "height": 22.9, "rotation": -7, "filter": "brightness(1.02)"},
-        {"id": "bubble-blue-oval", "file": "bubbles-clarified/19-right-blue-oval.png", "x": 963.4, "y": 744.6, "width": 41.8, "height": 29.6, "rotation": -3, "filter": "saturate(1.14) brightness(.92)"},
-        {"id": "bubble-blue-slime", "file": "bubbles-clarified/09-left-blue-slime.png", "x": 899.3, "y": 764.7, "width": 87.4, "height": 73.0, "rotation": 12, "mirrorX": true, "filter": "saturate(1.13) brightness(.97)"},
-        {"id": "bubble-blue-left-edge", "file": "bubbles-clarified/05-left-cyan.png", "x": -29.8, "y": 780.4, "width": 135.9, "height": 132.6, "rotation": -16, "filter": "hue-rotate(15deg) saturate(1.07) brightness(.83) contrast(1.52) drop-shadow(.10cqw -.36cqw .10cqw #e7fdffe6)"},
-        {"id": "bubble-blue-by-rock", "file": "bubbles-clarified/03-left-blue.png", "x": 189.8, "y": 963.0, "width": 37.9, "height": 27.9, "rotation": -48, "filter": "saturate(1.05) brightness(.965) blur(.25cqw)", "opacity": 0.98},
-        {"id": "bubble-blue-by-rock-small", "file": "bubbles-clarified/03-left-blue.png", "x": 227.7, "y": 936.5, "width": 14.7, "height": 15.0, "filter": "blur(.22cqw)", "opacity": 0.68},
-        {"id": "bubble-blue-right-edge", "file": "bubbles-clarified/05-left-cyan.png", "x": 984.8, "y": 946.0, "width": 163.7, "height": 143.2, "rotation": 27, "mirrorX": true, "filter": "hue-rotate(25deg) saturate(1.17) brightness(.77) contrast(1.54) drop-shadow(.39cqw -.55cqw .15cqw #f2feffff)", "tint": "linear-gradient(240deg, transparent 44%, rgb(25 181 245 / 94%) 57%)"},
-        {"id": "bubble-blue-lower-left", "file": "bubbles-clarified/05-left-cyan.png", "x": -1.4, "y": 1046.2, "width": 95.0, "height": 76.9, "rotation": -16, "filter": "hue-rotate(13deg) saturate(1.09) brightness(.838) contrast(1.45) drop-shadow(.42cqw -.25cqw .16cqw #dcf9fff5)"}
+        {"id": "bubble-cyan-top-left", "file": "bubbles-clarified/10-left-cyan-tiny.webp", "x": 49.3, "y": 49.6, "width": 24.6, "height": 29.0, "rotation": 7, "opacity": 0.24, "filter": "blur(.045cqw)"},
+        {"id": "bubble-pink-top-left", "file": "bubbles-clarified/01-left-pink-upper-large.webp", "x": 258.4, "y": 36.4, "width": 18.6, "height": 30.0, "rotation": 8, "opacity": 0.47, "filter": "blur(.11cqw)"},
+        {"id": "bubble-yellow-matte", "file": "bubbles-clarified/11-right-yellow-matte.webp", "x": 743, "y": 68, "width": 20, "height": 30, "opacity": 0.8},
+        {"id": "bubble-cyan-top-right", "file": "bubbles-clarified/10-left-cyan-tiny.webp", "x": 821, "y": 115, "width": 12, "height": 16, "opacity": 0.64},
+        {"id": "bubble-purple-sky-left", "file": "bubbles-clarified/07-left-purple-matte.webp", "x": 126, "y": 189, "width": 37, "height": 38, "opacity": 0.69},
+        {"id": "bubble-pale-blue", "file": "bubbles-clarified/12-right-pale-blue.webp", "x": 819.2, "y": 231.6, "width": 59.3, "height": 45.6, "rotation": -43, "opacity": 0.92, "filter": "saturate(1.93) brightness(.94) drop-shadow(.25cqw -.28cqw .12cqw #effafff7) blur(.10cqw)"},
+        {"id": "bubble-pale-blue-small", "file": "bubbles-clarified/12-right-pale-blue.webp", "x": 819.0, "y": 245.3, "width": 28.8, "height": 28.0, "opacity": 0.92, "filter": "drop-shadow(-.14cqw -.14cqw .12cqw #effaffa7) blur(.07cqw)"},
+        {"id": "bubble-pink-pair-large", "file": "bubbles-clarified/14-right-pink-pair-large.webp", "x": 732.8, "y": 281.8, "width": 48.8, "height": 48.5, "rotation": -7, "filter": "drop-shadow(-.16cqw -.22cqw .10cqw #fff3ffdc)"},
+        {"id": "bubble-pink-pair-small", "file": "bubbles-clarified/15-right-pink-pair-small.webp", "x": 778.6, "y": 297.1, "width": 28.1, "height": 30.4, "rotation": -18, "filter": "saturate(1.21) drop-shadow(-.10cqw -.17cqw .10cqw #fff3ffe5) blur(.06cqw)"},
+        {"id": "bubble-pink-upper-large", "file": "bubbles-clarified/01-left-pink-upper-large.webp", "x": 510, "y": 298, "width": 23, "height": 31, "opacity": 0.83},
+        {"id": "bubble-pink-tiny", "file": "bubbles-clarified/06-left-pink-tiny.webp", "x": 7.3, "y": 358.6, "width": 33.1, "height": 29.3, "rotation": -4, "opacity": 0.96},
+        {"id": "bubble-cyan-by-bat", "file": "bubbles-clarified/10-left-cyan-tiny.webp", "x": 414.1, "y": 338.5, "width": 27.0, "height": 32.0, "rotation": 8, "opacity": 0.81, "filter": "hue-rotate(8deg) brightness(.94) blur(.11cqw)"},
+        {"id": "bubble-pink-below-bat", "file": "bubbles-clarified/08-left-pink-lower.webp", "x": 302.2, "y": 418.5, "width": 44.7, "height": 54.3, "rotation": 24, "opacity": 0.94, "filter": "blur(.13cqw)"},
+        {"id": "bubble-blue-by-ringtail", "file": "bubbles-clarified/03-left-blue.webp", "x": 172.1, "y": 440.5, "width": 41.1, "height": 48.0, "rotation": -4, "filter": "saturate(1.09) brightness(.97) blur(.10cqw)"},
+        {"id": "bubble-cyan-left", "file": "bubbles-clarified/05-left-cyan.webp", "x": 1.0, "y": 462.9, "width": 43.8, "height": 46.7, "rotation": -14, "filter": "brightness(.96) drop-shadow(.26cqw -.19cqw .11cqw #bbf1fbc9)"},
+        {"id": "bubble-blue-behind-cotton", "file": "bubbles-clarified/03-left-blue.webp", "x": 630.5, "y": 533.8, "width": 68, "height": 61, "mirrorX": true, "filter": "blur(.11cqw)", "opacity": 0.96},
+        {"id": "bubble-purple-by-pink", "file": "bubbles-clarified/07-left-purple-matte.webp", "x": 18, "y": 609, "width": 65, "height": 61},
+        {"id": "bubble-pink-behind-pink-slime", "file": "bubbles-clarified/04-left-pink-rounded.webp", "x": 256.9, "y": 666.2, "width": 31.3, "height": 27.9, "rotation": 20, "opacity": 0.92, "filter": "saturate(.70) blur(.26cqw)"},
+        {"id": "bubble-purple-pair-large", "file": "bubbles-clarified/16-right-purple-pair-large.webp", "x": 847.5, "y": 689.2, "width": 58.7, "height": 59.2, "rotation": -9, "filter": "saturate(1.08)"},
+        {"id": "bubble-pink-lower", "file": "bubbles-clarified/08-left-pink-lower.webp", "x": 17.3, "y": 683.1, "width": 47.6, "height": 40.7, "rotation": 5},
+        {"id": "bubble-purple-pair-small", "file": "bubbles-clarified/17-right-purple-pair-small.webp", "x": 830.4, "y": 716.1, "width": 18.8, "height": 22.9, "rotation": -7, "filter": "brightness(1.02)"},
+        {"id": "bubble-blue-oval", "file": "bubbles-clarified/19-right-blue-oval.webp", "x": 963.4, "y": 744.6, "width": 41.8, "height": 29.6, "rotation": -3, "filter": "saturate(1.14) brightness(.92)"},
+        {"id": "bubble-blue-slime", "file": "bubbles-clarified/09-left-blue-slime.webp", "x": 899.3, "y": 764.7, "width": 87.4, "height": 73.0, "rotation": 12, "mirrorX": true, "filter": "saturate(1.13) brightness(.97)"},
+        {"id": "bubble-blue-left-edge", "file": "bubbles-clarified/05-left-cyan.webp", "x": -29.8, "y": 780.4, "width": 135.9, "height": 132.6, "rotation": -16, "filter": "hue-rotate(15deg) saturate(1.07) brightness(.83) contrast(1.52) drop-shadow(.10cqw -.36cqw .10cqw #e7fdffe6)"},
+        {"id": "bubble-blue-by-rock", "file": "bubbles-clarified/03-left-blue.webp", "x": 189.8, "y": 963.0, "width": 37.9, "height": 27.9, "rotation": -48, "filter": "saturate(1.05) brightness(.965) blur(.25cqw)", "opacity": 0.98},
+        {"id": "bubble-blue-by-rock-small", "file": "bubbles-clarified/03-left-blue.webp", "x": 227.7, "y": 936.5, "width": 14.7, "height": 15.0, "filter": "blur(.22cqw)", "opacity": 0.68},
+        {"id": "bubble-blue-right-edge", "file": "bubbles-clarified/05-left-cyan.webp", "x": 984.8, "y": 946.0, "width": 163.7, "height": 143.2, "rotation": 27, "mirrorX": true, "filter": "hue-rotate(25deg) saturate(1.17) brightness(.77) contrast(1.54) drop-shadow(.39cqw -.55cqw .15cqw #f2feffff)", "tint": "linear-gradient(240deg, transparent 44%, rgb(25 181 245 / 94%) 57%)"},
+        {"id": "bubble-blue-lower-left", "file": "bubbles-clarified/05-left-cyan.webp", "x": -1.4, "y": 1046.2, "width": 95.0, "height": 76.9, "rotation": -16, "filter": "hue-rotate(13deg) saturate(1.09) brightness(.838) contrast(1.45) drop-shadow(.42cqw -.25cqw .16cqw #dcf9fff5)"}
       ]
     },
     {
       "id": "distant-slimes",
       "elements": [
-        {"id": "background-left-rock", "file": "background-slimes/rock-slime.png", "x": 44.1, "y": 940.6, "width": 111.0, "height": 109.3, "rotation": -12.8},
-        {"id": "background-right-brown", "file": "background-slimes/honey-slime.png", "x": 722.9, "y": 353.3, "width": 70.3, "height": 72.9, "rotation": -21.4}
+        {"id": "background-left-rock", "file": "background-slimes/rock-slime.webp", "x": 44.1, "y": 940.6, "width": 111.0, "height": 109.3, "rotation": -12.8},
+        {"id": "background-right-brown", "file": "background-slimes/honey-slime.webp", "x": 722.9, "y": 353.3, "width": 70.3, "height": 72.9, "rotation": -21.4}
       ]
     },
     {
       "id": "background-chicken",
       "motion": "foreground",
       "elements": [
-        {"id": "background-left-winged", "file": "background-slimes/sea-hen.png", "x": 90.0, "y": 304.0, "width": 125.7, "height": 96.0, "rotation": -0.3}
+        {"id": "background-left-winged", "file": "background-slimes/sea-hen.webp", "x": 90.0, "y": 304.0, "width": 125.7, "height": 96.0, "rotation": -0.3}
       ]
     },
     {
       "id": "ringtail",
       "motion": "background-slimes",
       "elements": [
-        {"id": "background-left-ringtail", "file": "background-slimes/ringtail-slime.png", "x": 61.7, "y": 433.7, "width": 295.1, "height": 177.6}
+        {"id": "background-left-ringtail", "file": "background-slimes/ringtail-slime.webp", "x": 61.7, "y": 433.7, "width": 295.1, "height": 177.6}
       ]
     },
     {
       "id": "background-slimes",
       "elements": [
-        {"id": "background-right-blue", "file": "background-slimes/angler-slime.png", "x": 867.6, "y": 300.7, "width": 134.8, "height": 131.0, "rotation": -0.5},
-        {"id": "background-right-red-fruit", "file": "background-slimes/pogofruit.png", "x": 840.8, "y": 1190.9, "width": 157.6, "height": 149.6, "rotation": -0.6}
+        {"id": "background-right-blue", "file": "background-slimes/angler-slime.webp", "x": 867.6, "y": 300.7, "width": 134.8, "height": 131.0, "rotation": -0.5},
+        {"id": "background-right-red-fruit", "file": "background-slimes/pogofruit.webp", "x": 840.8, "y": 1190.9, "width": 157.6, "height": 149.6, "rotation": -0.6}
       ]
     },
     {
       "id": "beatrix",
       "elements": [
-        {"id": "beatrix", "file": "beatrix.png", "x": 264.0, "y": 454.0, "width": 782.8, "height": 1160.358}
+        {"id": "beatrix", "file": "beatrix.webp", "x": 264.0, "y": 454.0, "width": 782.8, "height": 1160.358}
       ]
     },
     {
       "id": "foreground-bat",
       "motion": "distant-slimes",
       "elements": [
-        {"id": "foreground-purple-bat", "file": "foreground/slimes/batty-slime.png", "x": 262.4, "y": 305.1, "width": 175.6, "height": 133.4, "rotation": -0.6}
+        {"id": "foreground-purple-bat", "file": "foreground/slimes/batty-slime.webp", "x": 262.4, "y": 305.1, "width": 175.6, "height": 133.4, "rotation": -0.6}
       ]
     },
     {
       "id": "foreground-butterfly",
       "motion": "background-slimes",
       "elements": [
-        {"id": "foreground-orange-butterfly", "file": "foreground/slimes/flutter-slime.png", "x": 511.0, "y": 358.1, "width": 175.0, "height": 158.1}
+        {"id": "foreground-orange-butterfly", "file": "foreground/slimes/flutter-slime.webp", "x": 511.0, "y": 358.1, "width": 175.0, "height": 158.1}
       ]
     },
     {
       "id": "foreground-slimes",
       "motion": "foreground",
       "elements": [
-        {"id": "foreground-pink", "file": "foreground/slimes/pink-slime.png", "x": 40.7, "y": 633.7, "width": 254.5, "height": 239.8}
+        {"id": "foreground-pink", "file": "foreground/slimes/pink-slime.webp", "x": 40.7, "y": 633.7, "width": 254.5, "height": 239.8}
       ]
     },
     {
       "id": "white-light-under-crystal",
       "motion": "white-light",
       "elements": [
-        {"id": "light-by-blue-violet-crystal", "file": "foreground/white-light-points/02.png", "x": 942.1, "y": 682.2, "width": 21.3, "height": 27.3, "rotation": -1.0}
+        {"id": "light-by-blue-violet-crystal", "file": "foreground/white-light-points/02.webp", "x": 942.1, "y": 682.2, "width": 21.3, "height": 27.3, "rotation": -1.0}
       ]
     },
     {
       "id": "foreground-rabbit",
       "motion": "foreground",
       "elements": [
-        {"id": "foreground-yellow-rabbit", "file": "foreground/slimes/cotton-slime.png", "x": 653.3, "y": 417.6, "width": 323.8, "height": 284.3}
+        {"id": "foreground-yellow-rabbit", "file": "foreground/slimes/cotton-slime.webp", "x": 653.3, "y": 417.6, "width": 323.8, "height": 284.3}
       ]
     },
     {
       "id": "foreground",
       "elements": [
-        {"id": "crystal-yellow", "file": "foreground/plorts/yellow.png", "x": 21.9, "y": 374.5, "width": 40.3, "height": 45.6},
-        {"id": "crystal-upper-blue-violet", "file": "foreground/plorts/upper-blue-violet.png", "x": 955, "y": 650.4, "width": 48.4, "height": 47.1, "rotation": 0.4, "filter": "saturate(1.03) brightness(1.04) drop-shadow(0 0 0 #fff) drop-shadow(0 0 0 #fff)"},
-        {"id": "crystal-lower-left-cyan", "file": "foreground/plorts/lower-left-cyan.png", "x": 203.6, "y": 1075.3, "width": 56.8, "height": 44.3, "rotation": 2.8, "mirrorX": true},
-        {"id": "crystal-pink", "file": "foreground/plorts/pink.png", "x": 842.2, "y": 1070.9, "width": 70.1, "height": 60.4, "mirrorX": true},
-        {"id": "crystal-lower-blue-violet", "file": "foreground/plorts/lower-blue-violet.png", "x": 58, "y": 1177.4, "width": 149.9, "height": 124, "rotation": -2.8, "mirrorX": true, "filter": "hue-rotate(24deg) saturate(1.15) brightness(1.11)"}
+        {"id": "crystal-yellow", "file": "foreground/plorts/yellow.webp", "x": 21.9, "y": 374.5, "width": 40.3, "height": 45.6},
+        {"id": "crystal-upper-blue-violet", "file": "foreground/plorts/upper-blue-violet.webp", "x": 955, "y": 650.4, "width": 48.4, "height": 47.1, "rotation": 0.4, "filter": "saturate(1.03) brightness(1.04) drop-shadow(0 0 0 #fff) drop-shadow(0 0 0 #fff)"},
+        {"id": "crystal-lower-left-cyan", "file": "foreground/plorts/lower-left-cyan.webp", "x": 203.6, "y": 1075.3, "width": 56.8, "height": 44.3, "rotation": 2.8, "mirrorX": true},
+        {"id": "crystal-pink", "file": "foreground/plorts/pink.webp", "x": 842.2, "y": 1070.9, "width": 70.1, "height": 60.4, "mirrorX": true},
+        {"id": "crystal-lower-blue-violet", "file": "foreground/plorts/lower-blue-violet.webp", "x": 58, "y": 1177.4, "width": 149.9, "height": 124, "rotation": -2.8, "mirrorX": true, "filter": "hue-rotate(24deg) saturate(1.15) brightness(1.11)"}
       ]
     },
     {
       "id": "white-light-points",
       "motion": "white-light",
       "elements": [
-        {"id": "light-left-edge", "file": "foreground/white-light-points/03.png", "x": -12.4, "y": 451.7, "width": 18.5, "height": 25.1, "rotation": -4.8},
-        {"id": "light-by-cotton", "file": "foreground/white-light-points/02.png", "x": 724.3, "y": 512.9, "width": 18.8, "height": 23.3, "rotation": -12.5},
-        {"id": "light-by-pink-slime", "file": "foreground/white-light-points/05.png", "x": 32.2, "y": 727.7, "width": 15.9, "height": 11.2, "rotation": -4.4},
-        {"id": "light-left-horizon", "file": "foreground/white-light-points/10.png", "x": 184.6, "y": 1020.5, "width": 18.6, "height": 5.2, "rotation": 9.5},
-        {"id": "light-lower-left-beam", "file": "foreground/white-light-points/11.png", "x": 86.2, "y": 1153.2, "width": 30.6, "height": 9.8, "rotation": -9.6},
-        {"id": "light-lower-right-beam", "file": "foreground/white-light-points/12.png", "x": 953.8, "y": 1145.7, "width": 18.9, "height": 5.3, "rotation": 10.0},
-        {"id": "light-lower-right-beam-small", "file": "foreground/white-light-points/12.png", "x": 980.4, "y": 1142.3, "width": 8.5, "height": 3.4, "rotation": 3.9, "opacity": 0.94},
-        {"id": "light-below-pink-slime", "file": "foreground/white-light-points/03.png", "x": 350.0, "y": 1265.1, "width": 9.5, "height": 14.4, "rotation": 68.2},
-        {"id": "light-14", "file": "foreground/white-light-points/14.png", "x": 824.0, "y": 1285.3, "width": 10.7, "height": 7.6, "rotation": 0.3},
-        {"id": "light-16", "file": "foreground/white-light-points/16.png", "x": 176.8, "y": 1295.5, "width": 26.7, "height": 14.4, "rotation": -9.8}
+        {"id": "light-left-edge", "file": "foreground/white-light-points/03.webp", "x": -12.4, "y": 451.7, "width": 18.5, "height": 25.1, "rotation": -4.8},
+        {"id": "light-by-cotton", "file": "foreground/white-light-points/02.webp", "x": 724.3, "y": 512.9, "width": 18.8, "height": 23.3, "rotation": -12.5},
+        {"id": "light-by-pink-slime", "file": "foreground/white-light-points/05.webp", "x": 32.2, "y": 727.7, "width": 15.9, "height": 11.2, "rotation": -4.4},
+        {"id": "light-left-horizon", "file": "foreground/white-light-points/10.webp", "x": 184.6, "y": 1020.5, "width": 18.6, "height": 5.2, "rotation": 9.5},
+        {"id": "light-lower-left-beam", "file": "foreground/white-light-points/11.webp", "x": 86.2, "y": 1153.2, "width": 30.6, "height": 9.8, "rotation": -9.6},
+        {"id": "light-lower-right-beam", "file": "foreground/white-light-points/12.webp", "x": 953.8, "y": 1145.7, "width": 18.9, "height": 5.3, "rotation": 10.0},
+        {"id": "light-lower-right-beam-small", "file": "foreground/white-light-points/12.webp", "x": 980.4, "y": 1142.3, "width": 8.5, "height": 3.4, "rotation": 3.9, "opacity": 0.94},
+        {"id": "light-below-pink-slime", "file": "foreground/white-light-points/03.webp", "x": 350.0, "y": 1265.1, "width": 9.5, "height": 14.4, "rotation": 68.2},
+        {"id": "light-14", "file": "foreground/white-light-points/14.webp", "x": 824.0, "y": 1285.3, "width": 10.7, "height": 7.6, "rotation": 0.3},
+        {"id": "light-16", "file": "foreground/white-light-points/16.webp", "x": 176.8, "y": 1295.5, "width": 26.7, "height": 14.4, "rotation": -9.8}
       ]
     }
   ]

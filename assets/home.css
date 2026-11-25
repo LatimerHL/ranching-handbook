@@ -136,9 +136,9 @@
 .home-github-icon {
   inline-size: 1.18rem;
   aspect-ratio: 1;
-  background: center / contain no-repeat url("./github-mark-black.png");
+  background: center / contain no-repeat url("./github-mark-black.webp");
 }
-.home[data-theme="dark"] .home-github-icon { background-image: url("./github-mark-white.png"); }
+.home[data-theme="dark"] .home-github-icon { background-image: url("./github-mark-white.webp"); }
 
 @media (orientation: portrait) {
   .home-hero::before { opacity: 0; }

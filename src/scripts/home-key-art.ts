@@ -1,5 +1,7 @@
 import { gsap } from 'gsap';
 import { mountHomeParallax } from './home-parallax';
+import { mountSlimeBlink } from './home-slime-blink';
+import { mountSlimeVoice, preloadSlimeVoices, type VoiceLibrary } from './home-slime-voice';
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const detailOffsetInRem = {
@@ -12,10 +14,18 @@ const detailOffsetInRem = {
 // The reference poster is 1080 px tall. Map vertical travel onto its half-height for the radial layers.
 const referenceRadiusInRem = 1080 / 2 / 16;
 type PreparedImage = { placeholder: HTMLImageElement; image: HTMLImageElement };
-const preparedHomes = new WeakMap<HTMLElement, { artwork: PreparedImage[]; loaded: boolean }>();
+type PreparedHome = { artwork: PreparedImage[]; loaded: boolean; voices?: VoiceLibrary };
+const preparedHomes = new WeakMap<HTMLElement, PreparedHome>();
 let mountedHero: HTMLElement | undefined;
 let entrance: gsap.core.Timeline | undefined;
 let unmountParallax: (() => void) | undefined;
+let unmountBlink: (() => void) | undefined;
+let unmountVoice: (() => void) | undefined;
+let mountedVoices: VoiceLibrary | undefined;
+
+// The clips travel with the artwork, but they must never hold up the entrance: whatever has arrived
+// by the deadline is used, and the rest keeps landing in the same map for later pokes.
+const voiceDeadlineMs = 1500;
 
 function stopKeyArtEntrance() {
   entrance?.revert();
@@ -71,6 +81,52 @@ function stopParallax() {
   unmountParallax = undefined;
 }
 
+function startBlink() {
+  if (mountedHero && !unmountBlink) unmountBlink = mountSlimeBlink(mountedHero);
+}
+
+function stopBlink() {
+  unmountBlink?.();
+  unmountBlink = undefined;
+}
+
+function startVoice(voices?: VoiceLibrary) {
+  if (mountedHero && !unmountVoice) {
+    mountedVoices = voices;
+    unmountVoice = mountSlimeVoice(mountedHero, voices?.clips);
+  }
+}
+
+function stopVoice() {
+  unmountVoice?.();
+  unmountVoice = undefined;
+  mountedVoices?.dispose();
+  mountedVoices = undefined;
+}
+
+function startVoicePreload(hero: HTMLElement, base: string | URL, signal?: AbortSignal) {
+  const source = hero.querySelector<HTMLElement>('.home-key-art')?.dataset.voiceSrc;
+  if (!source) return undefined;
+  try {
+    return preloadSlimeVoices(new URL(source, base), signal);
+  } catch {
+    return undefined;
+  }
+}
+
+// The clips ride along with the artwork: they start first, and the overlay waits for them only as
+// long as it is waiting for the graphics anyway.
+async function settleVoice(voices: VoiceLibrary | undefined, until: Promise<unknown>) {
+  if (!voices) return;
+  // Ride along with the artwork: audio gets at most as long as the graphics take, so adding it can
+  // never make the entrance slower than it was without voices.
+  await Promise.race([
+    voices.ready,
+    until.then(() => undefined),
+    new Promise<void>(resolve => setTimeout(resolve, voiceDeadlineMs)),
+  ]);
+}
+
 async function decodeGraphics(hero: HTMLElement, artwork: HTMLImageElement[], base: string | URL, signal?: AbortSignal) {
   const controls = (hero.dataset.controlImages?.split(' ') ?? []).map(src => {
     const image = new Image();
@@ -97,14 +153,18 @@ export async function prepareHomeKeyArt(hero: HTMLElement, destination: URL, sig
     image.src = new URL(placeholder.getAttribute('src')!, destination).href;
     return { placeholder, image };
   });
-  const loaded = await decodeGraphics(hero, artwork.map(({ image }) => image), destination, signal);
+  // Start the clips first so they download while the artwork decodes; the overlay never waits longer
+  // for a clip than it waits for a graphic.
+  const voices = startVoicePreload(hero, destination, signal);
+  const artworkDone = decodeGraphics(hero, artwork.map(({ image }) => image), destination, signal);
+  const [loaded] = await Promise.all([artworkDone, settleVoice(voices, artworkDone)]);
   if (signal.aborted) return;
   for (const { placeholder } of artwork) placeholder.removeAttribute('src');
   hero.ownerDocument.body.removeAttribute('data-page-loading');
-  preparedHomes.set(hero, { artwork, loaded });
+  preparedHomes.set(hero, { artwork, loaded, voices });
 }
 
-function finishKeyArtLoad(hero: HTMLElement, loaded: boolean) {
+function finishKeyArtLoad(hero: HTMLElement, loaded: boolean, voices?: VoiceLibrary) {
   const scenes = [...hero.querySelectorAll<HTMLElement>('.home-key-art')];
   if (!loaded) {
     // Leave the page usable if a graphic fails, without playing an incomplete entrance.
@@ -117,6 +177,8 @@ function finishKeyArtLoad(hero: HTMLElement, loaded: boolean) {
   hero.removeAttribute('data-loading');
   document.body.removeAttribute('data-page-loading');
   startParallax();
+  startBlink();
+  startVoice(voices);
 }
 
 async function startKeyArt() {
@@ -128,12 +190,14 @@ async function startKeyArt() {
   if (prepared) {
     preparedHomes.delete(hero);
     for (const { placeholder, image } of prepared.artwork) placeholder.replaceWith(image);
-    finishKeyArtLoad(hero, prepared.loaded);
+    finishKeyArtLoad(hero, prepared.loaded, prepared.voices);
     return;
   }
   // Both orientations must be ready so a resize during the entrance can switch scenes.
-  const loaded = await decodeGraphics(hero, [...hero.querySelectorAll('img')], document.baseURI);
-  if (mountedHero === hero && hero.isConnected) finishKeyArtLoad(hero, loaded);
+  const voices = startVoicePreload(hero, document.baseURI);
+  const artworkDone = decodeGraphics(hero, [...hero.querySelectorAll('img')], document.baseURI);
+  const [loaded] = await Promise.all([artworkDone, settleVoice(voices, artworkDone)]);
+  if (mountedHero === hero && hero.isConnected) finishKeyArtLoad(hero, loaded, voices);
 }
 
 startKeyArt();
@@ -141,6 +205,8 @@ document.addEventListener('astro:before-swap', () => {
   mountedHero = undefined;
   stopKeyArtEntrance();
   stopParallax();
+  stopBlink();
+  stopVoice();
 });
 document.addEventListener('astro:after-swap', startKeyArt);
 reducedMotion.addEventListener('change', ({ matches }) => {
