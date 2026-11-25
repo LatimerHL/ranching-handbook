@@ -92,7 +92,13 @@
   transition: opacity var(--motion-medium) var(--ease-enter);
 }
 .home[data-theme="dark"] .home-sidebar-scrim { z-index: 1; }
-.home-hero:has(.home-menu.is-open) .home-sidebar-scrim { opacity: 1; }
+.home-hero:has(.home-menu.is-open) .home-sidebar-scrim {
+  opacity: 1;
+  /* Cover the buttons and the page content while the drawer is out, but stay under the
+     drawer itself (z-index 5): a tap on the scrim must only close the drawer. */
+  z-index: 3;
+  pointer-events: auto;
+}
 .home-hero[data-drawer-dragging]:has(.home-menu.is-open) .home-sidebar-scrim {
   opacity: var(--drawer-progress, 1);
 }

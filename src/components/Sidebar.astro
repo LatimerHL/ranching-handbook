@@ -10,7 +10,7 @@ const links = [
 ];
 ---
 
-<div class="home-sidebar-scrim" aria-hidden="true"></div>
+<div class="home-sidebar-scrim" data-popover-scrim="home-menu" aria-hidden="true"></div>
 <button class="home-icon-button home-menu-toggle motion-rise motion-feedback" type="button" data-popover-target="home-menu" aria-controls="home-menu" aria-expanded="false" aria-label="打开侧栏">
   <span class="home-menu-icon" aria-hidden="true"></span>
 </button>
@@ -44,9 +44,6 @@ const links = [
   /** Flick speed is measured over the tail of the gesture, not the whole swipe. */
   const velocityWindow = 100;
 
-  const drawer = document.getElementById('home-menu');
-  const hero = document.querySelector('.home-hero');
-
   interface Sample {
     t: number;
     x: number;
@@ -63,126 +60,148 @@ const links = [
     samples: Sample[];
   }
 
-  if (drawer && hero) {
-    let gesture: Gesture | null = null;
-    let pointerId: number | undefined;
+  // Resolve the drawer on every use instead of capturing it once: the ClientRouter swaps the
+  // home markup after a client-side navigation, and handlers bound to the detached element
+  // would silently stop moving the visible drawer.
+  const drawerElement = () => document.getElementById('home-menu');
+  const heroElement = () => document.querySelector<HTMLElement>('.home-hero');
 
-    drawer.inert = !isPopoverOpen(drawer);
+  let gesture: Gesture | null = null;
+  let pointerId: number | undefined;
 
-    const paint = (g: Gesture) => {
-      // Closing: the drawer slides from 0 to -width. Opening: from -width to 0. Either way the
-      // panel must track the finger pixel for pixel, so the raw travel drives the offset directly.
-      const width = g.width || drawer.offsetWidth || 1;
-      const offset = g.wasOpen ? Math.min(0, g.dx) : Math.min(0, -width + Math.max(0, g.dx));
-      const clamped = Math.max(-width, offset);
-      hero.style.setProperty('--drawer-offset', clamped + 'px');
-      hero.style.setProperty('--drawer-progress', String(1 + clamped / width));
+  const syncState = () => {
+    const drawer = drawerElement();
+    if (drawer) drawer.inert = !isPopoverOpen(drawer);
+  };
+
+  const paint = (g: Gesture, hero: HTMLElement) => {
+    // Closing: the drawer slides from 0 to -width. Opening: from -width to 0. Either way the
+    // panel must track the finger pixel for pixel, so the raw travel drives the offset directly.
+    const width = g.width || 1;
+    const offset = g.wasOpen ? Math.min(0, g.dx) : Math.min(0, -width + Math.max(0, g.dx));
+    const clamped = Math.max(-width, offset);
+    hero.style.setProperty('--drawer-offset', clamped + 'px');
+    hero.style.setProperty('--drawer-progress', String(1 + clamped / width));
+  };
+
+  const settle = (open: boolean, drawer: HTMLElement, hero: HTMLElement) => {
+    hero.removeAttribute('data-drawer-dragging');
+    hero.style.removeProperty('--drawer-offset');
+    hero.style.removeProperty('--drawer-progress');
+    gesture = null;
+    pointerId = undefined;
+    if (open) openPopover(drawer);
+    else closePopover(drawer);
+    drawer.inert = !open;
+  };
+
+  const velocity = (g: Gesture) => {
+    const samples = g.samples;
+    const last = samples[samples.length - 1];
+    if (!last) return 0;
+    let first = last;
+    for (let index = samples.length - 1; index >= 0; index -= 1) {
+      first = samples[index];
+      if (last.t - first.t >= velocityWindow) break;
+    }
+    const elapsed = last.t - first.t;
+    return elapsed < 16 ? 0 : (last.x - first.x) / elapsed;
+  };
+
+  window.addEventListener('pointerdown', event => {
+    const drawer = drawerElement();
+    if (!drawer) return;
+    const x = event.clientX;
+    const y = event.clientY;
+    const open = isPopoverOpen(drawer);
+    if (open) {
+      if (x > drawer.getBoundingClientRect().right + 8) return;
+    } else if (x > edgeWidth) {
+      return;
+    }
+    gesture = {
+      startX: x,
+      startY: y,
+      wasOpen: open,
+      width: drawer.offsetWidth,
+      moved: false,
+      dx: 0,
+      axis: null,
+      samples: [{ t: event.timeStamp, x }],
     };
+    pointerId = event.pointerId;
+  }, { passive: true, capture: true });
 
-    const settle = (open: boolean) => {
-      hero.removeAttribute('data-drawer-dragging');
-      hero.style.removeProperty('--drawer-offset');
-      hero.style.removeProperty('--drawer-progress');
-      gesture = null;
-      pointerId = undefined;
-      if (open) openPopover(drawer);
-      else closePopover(drawer);
-      drawer.inert = !open;
-    };
-
-    const velocity = (g: Gesture) => {
-      const samples = g.samples;
-      const last = samples[samples.length - 1];
-      if (!last) return 0;
-      let first = last;
-      for (let index = samples.length - 1; index >= 0; index -= 1) {
-        first = samples[index];
-        if (last.t - first.t >= velocityWindow) break;
-      }
-      const elapsed = last.t - first.t;
-      return elapsed < 16 ? 0 : (last.x - first.x) / elapsed;
-    };
-
-    window.addEventListener('pointerdown', event => {
-      const x = event.clientX;
-      const y = event.clientY;
-      const open = isPopoverOpen(drawer);
-      if (open) {
-        if (x > drawer.getBoundingClientRect().right + 8) return;
-      } else if (x > edgeWidth) {
-        return;
-      }
-      gesture = {
-        startX: x,
-        startY: y,
-        wasOpen: open,
-        width: drawer.offsetWidth,
-        moved: false,
-        dx: 0,
-        axis: null,
-        samples: [{ t: event.timeStamp, x }],
-      };
-      pointerId = event.pointerId;
-    }, { passive: true, capture: true });
-
-    window.addEventListener('pointermove', event => {
-      const g = gesture;
-      if (!g || event.pointerId !== pointerId) return;
-      const dx = event.clientX - g.startX;
-      const dy = event.clientY - g.startY;
-      if (!g.axis) {
-        if (Math.abs(dx) < intent) return;
-        if (Math.abs(dy) >= Math.abs(dx)) {
-          // A vertical drag is a page scroll: drop the gesture so a diagonal drift later in the
-          // same touch cannot suddenly start moving the drawer.
-          gesture = null;
-          pointerId = undefined;
-          return;
-        }
-        // Lock the gesture to its axis once.
-        g.axis = 'x';
-        g.moved = true;
-        if (!g.wasOpen) {
-          openPopover(drawer);
-          g.width = drawer.offsetWidth;
-        }
-        hero.setAttribute('data-drawer-dragging', '');
-      }
-      g.dx = dx;
-      g.samples.push({ t: event.timeStamp, x: event.clientX });
-      if (g.samples.length > 24) g.samples.shift();
-      paint(g);
-    }, { passive: true, capture: true });
-
-    const end = (event: PointerEvent, cancelled: boolean) => {
-      const g = gesture;
-      if (!g || event.pointerId !== pointerId) return;
-      if (!g.moved) {
+  window.addEventListener('pointermove', event => {
+    const g = gesture;
+    if (!g || event.pointerId !== pointerId) return;
+    const hero = heroElement();
+    const drawer = drawerElement();
+    if (!hero || !drawer) return;
+    const dx = event.clientX - g.startX;
+    const dy = event.clientY - g.startY;
+    if (!g.axis) {
+      if (Math.abs(dx) < intent) return;
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        // A vertical drag is a page scroll: drop the gesture so a diagonal drift later in the
+        // same touch cannot suddenly start moving the drawer.
         gesture = null;
         pointerId = undefined;
         return;
       }
-      // Revert to where the gesture started: the browser took the pointer away, so the
-      // finger's last position says nothing about what the user wanted.
-      if (cancelled) {
-        settle(g.wasOpen);
-        return;
+      // Lock the gesture to its axis once.
+      g.axis = 'x';
+      g.moved = true;
+      if (!g.wasOpen) {
+        openPopover(drawer);
+        g.width = drawer.offsetWidth;
       }
-      // Trust the last tracked frame instead of the release coordinates: on touch the
-      // pointerup can land well away from where the finger actually lifted.
-      const raw = g.dx;
-      const speed = g.samples.length > 1 ? velocity(g) : 0;
-      if (g.wasOpen) {
-        // Opening drags travel right, closing drags travel left; judge each by its own axis.
-        const flick = speed <= -flickVelocity && raw <= -flickDistance;
-        settle(!(raw <= -closeDistance || flick));
-      } else {
-        const flick = speed >= flickVelocity && raw >= flickDistance;
-        settle(raw >= openDistance || flick);
-      }
-    };
+      hero.setAttribute('data-drawer-dragging', '');
+    }
+    g.dx = dx;
+    g.samples.push({ t: event.timeStamp, x: event.clientX });
+    if (g.samples.length > 24) g.samples.shift();
+    paint(g, hero);
+  }, { passive: true, capture: true });
 
-    window.addEventListener('pointerup', event => end(event, false), { passive: true, capture: true });
-    window.addEventListener('pointercancel', event => end(event, true), { passive: true, capture: true });
-  }
+  const end = (event: PointerEvent, cancelled: boolean) => {
+    const g = gesture;
+    if (!g || event.pointerId !== pointerId) return;
+    if (!g.moved) {
+      gesture = null;
+      pointerId = undefined;
+      return;
+    }
+    const drawer = drawerElement();
+    const hero = heroElement();
+    if (!drawer || !hero) {
+      gesture = null;
+      pointerId = undefined;
+      return;
+    }
+    // Revert to where the gesture started: the browser took the pointer away, so the
+    // finger's last position says nothing about what the user wanted.
+    if (cancelled) {
+      settle(g.wasOpen, drawer, hero);
+      return;
+    }
+    // Trust the last tracked frame instead of the release coordinates: on touch the
+    // pointerup can land well away from where the finger actually lifted.
+    const raw = g.dx;
+    const speed = g.samples.length > 1 ? velocity(g) : 0;
+    if (g.wasOpen) {
+      // Opening drags travel right, closing drags travel left; judge each by its own axis.
+      const flick = speed <= -flickVelocity && raw <= -flickDistance;
+      settle(!(raw <= -closeDistance || flick), drawer, hero);
+    } else {
+      const flick = speed >= flickVelocity && raw >= flickDistance;
+      settle(raw >= openDistance || flick, drawer, hero);
+    }
+  };
+
+  window.addEventListener('pointerup', event => end(event, false), { passive: true, capture: true });
+  window.addEventListener('pointercancel', event => end(event, true), { passive: true, capture: true });
+
+  syncState();
+  document.addEventListener('astro:page-load', syncState);
 </script>

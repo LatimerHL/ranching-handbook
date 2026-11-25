@@ -147,8 +147,24 @@ function fallbackDismiss() {
     if (!open.length) return;
     const target = event.target as Element | null;
     if (!target) return;
+    // A scrim closes its panel on click: closing here would turn off the scrim's
+    // pointer-events before the finger lifts, so the same tap would reach the page below.
+    if (target.closest?.('[data-popover-scrim]')) return;
     if (open.some(element => element.contains(target)) || target.closest?.('[data-popover-target]')) return;
     for (const element of open) closePopover(element);
+  }, true);
+
+  // A scrim closes its panel on click (not pointerdown, see above). Bound here, on the
+  // document, so it also works after a client-side navigation replaced the panel markup.
+  document.addEventListener('click', event => {
+    const target = event.target as Element | null;
+    const scrim = target?.closest?.('[data-popover-scrim]');
+    if (!scrim) return;
+    const panel = document.getElementById(scrim.getAttribute('data-popover-scrim') ?? '');
+    event.preventDefault();
+    event.stopPropagation();
+    if (panel) closePopover(panel);
+    else for (const element of document.querySelectorAll<HTMLElement>('[data-popover-panel].is-open')) closePopover(element);
   }, true);
 
   document.addEventListener('keydown', event => {
