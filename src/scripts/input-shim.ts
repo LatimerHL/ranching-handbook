@@ -229,7 +229,7 @@ function bindHover() {
   }, true);
   document.addEventListener('mouseout', event => {
     if ((event.relatedTarget as Element | null)) return;
-    clearHover();
+    clear();
   }, true);
 
   const onCompatMove = (event: MouseEvent) => {
