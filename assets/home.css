@@ -92,8 +92,8 @@
   transition: opacity var(--motion-medium) var(--ease-enter);
 }
 .home[data-theme="dark"] .home-sidebar-scrim { z-index: 1; }
-.home-hero:has(.home-menu:is(:popover-open, .is-open)) .home-sidebar-scrim { opacity: 1; }
-.home-hero[data-drawer-dragging]:has(.home-menu:is(:popover-open, .is-open)) .home-sidebar-scrim {
+.home-hero:has(.home-menu.is-open) .home-sidebar-scrim { opacity: 1; }
+.home-hero[data-drawer-dragging]:has(.home-menu.is-open) .home-sidebar-scrim {
   opacity: var(--drawer-progress, 1);
 }
 .home-hero[data-drawer-dragging] .home-sidebar-scrim {

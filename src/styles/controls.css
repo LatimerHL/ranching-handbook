@@ -83,8 +83,8 @@
 html[data-input="mouse"] .home-icon-button:hover,
 .home-icon-button[data-hover] { --tooltip-opacity: 1; --tooltip-delay: 120ms; }
 
-.home-hero:has(.home-menu:is(:popover-open, .is-open)) .home-menu-toggle,
-.home-actions:has(.home-theme:is(:popover-open, .is-open)) .home-theme-toggle {
+.home-hero:has(.home-menu.is-open) .home-menu-toggle,
+.home-actions:has(.home-theme.is-open) .home-theme-toggle {
   --tooltip-opacity: 0;
   --tooltip-delay: 0ms;
 }
@@ -123,7 +123,7 @@ html[data-input="mouse"] .home-icon-button:hover,
     visibility 0s linear var(--slide-duration);
 }
 
-.home-menu:is(:popover-open, .is-open) {
+.home-menu.is-open {
   --slide-duration: var(--motion-long);
   --slide-easing: var(--ease-enter);
   transform: translate3d(0, 0, 0);
@@ -207,7 +207,7 @@ html[data-input="mouse"] .home-icon-button:hover,
     visibility 0s linear var(--popover-duration);
 }
 
-.home-theme:is(:popover-open, .is-open) {
+.home-theme.is-open {
   --popover-duration: var(--motion-medium);
   transform: translate3d(0, 0, 0) scale(1);
   opacity: 1;
@@ -320,7 +320,7 @@ html[data-input="mouse"] .home-icon-button:hover,
 
 /* The shim keeps the panels in the layout at all times (closed = visibility:hidden) so the exit
    transition can run; they are plain boxes here, so they also need their own stacking order. */
-[popover] {
+[data-popover-panel] {
   display: block;
   z-index: 5;
 }

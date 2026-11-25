@@ -11,13 +11,13 @@ const links = [
 ---
 
 <div class="home-sidebar-scrim" aria-hidden="true"></div>
-<button class="home-icon-button home-menu-toggle motion-rise motion-feedback" type="button" popovertarget="home-menu" aria-label="打开侧栏">
+<button class="home-icon-button home-menu-toggle motion-rise motion-feedback" type="button" data-popover-target="home-menu" aria-controls="home-menu" aria-expanded="false" aria-label="打开侧栏">
   <span class="home-menu-icon" aria-hidden="true"></span>
 </button>
-<nav id="home-menu" class="home-menu" popover aria-labelledby="home-menu-title">
+<nav id="home-menu" class="home-menu" data-popover-panel aria-labelledby="home-menu-title">
   <div class="home-menu-heading">
     <h2 id="home-menu-title">快捷导航</h2>
-    <button class="motion-feedback" type="button" popovertarget="home-menu" popovertargetaction="hide">收起</button>
+    <button class="motion-feedback" type="button" data-popover-target="home-menu" data-popover-action="hide">收起</button>
   </div>
   <ul>
     {links.map(({ label, href }) =>
@@ -31,15 +31,26 @@ const links = [
 
   /** Distance from the left edge where an opening swipe may start. */
   const edgeWidth = 120;
-  /** Horizontal travel before a press turns into a drag. */
+  /** Horizontal travel before a press turns into a drag (Vaul uses 10px for touch; 8px keeps taps snappy). */
   const intent = 8;
-  /** Leftward travel that commits a close. */
+  /** Leftward travel that commits a close: 22% of this 288px drawer, next to Vaul's 25% default. */
   const closeDistance = 64;
   /** Rightward travel that commits an open (starting from the edge). */
   const openDistance = 64;
+  /** Flick speed in px/ms that commits the gesture early, once flickDistance is passed (Vaul's threshold). */
+  const flickVelocity = 0.4;
+  /** A flick only counts once the drawer has actually travelled this far. */
+  const flickDistance = 24;
+  /** Flick speed is measured over the tail of the gesture, not the whole swipe. */
+  const velocityWindow = 100;
 
   const drawer = document.getElementById('home-menu');
   const hero = document.querySelector('.home-hero');
+
+  interface Sample {
+    t: number;
+    x: number;
+  }
 
   interface Gesture {
     startX: number;
@@ -48,6 +59,8 @@ const links = [
     width: number;
     moved: boolean;
     dx: number;
+    axis: 'x' | null;
+    samples: Sample[];
   }
 
   if (drawer && hero) {
@@ -77,6 +90,19 @@ const links = [
       drawer.inert = !open;
     };
 
+    const velocity = (g: Gesture) => {
+      const samples = g.samples;
+      const last = samples[samples.length - 1];
+      if (!last) return 0;
+      let first = last;
+      for (let index = samples.length - 1; index >= 0; index -= 1) {
+        first = samples[index];
+        if (last.t - first.t >= velocityWindow) break;
+      }
+      const elapsed = last.t - first.t;
+      return elapsed < 16 ? 0 : (last.x - first.x) / elapsed;
+    };
+
     window.addEventListener('pointerdown', event => {
       const x = event.clientX;
       const y = event.clientY;
@@ -86,7 +112,16 @@ const links = [
       } else if (x > edgeWidth) {
         return;
       }
-      gesture = { startX: x, startY: y, wasOpen: open, width: drawer.offsetWidth, moved: false, dx: 0 };
+      gesture = {
+        startX: x,
+        startY: y,
+        wasOpen: open,
+        width: drawer.offsetWidth,
+        moved: false,
+        dx: 0,
+        axis: null,
+        samples: [{ t: event.timeStamp, x }],
+      };
       pointerId = event.pointerId;
     }, { passive: true, capture: true });
 
@@ -95,8 +130,17 @@ const links = [
       if (!g || event.pointerId !== pointerId) return;
       const dx = event.clientX - g.startX;
       const dy = event.clientY - g.startY;
-      if (!g.moved) {
-        if (Math.abs(dx) < intent || Math.abs(dx) <= Math.abs(dy)) return;
+      if (!g.axis) {
+        if (Math.abs(dx) < intent) return;
+        if (Math.abs(dy) >= Math.abs(dx)) {
+          // A vertical drag is a page scroll: drop the gesture so a diagonal drift later in the
+          // same touch cannot suddenly start moving the drawer.
+          gesture = null;
+          pointerId = undefined;
+          return;
+        }
+        // Lock the gesture to its axis once.
+        g.axis = 'x';
         g.moved = true;
         if (!g.wasOpen) {
           openPopover(drawer);
@@ -105,24 +149,40 @@ const links = [
         hero.setAttribute('data-drawer-dragging', '');
       }
       g.dx = dx;
+      g.samples.push({ t: event.timeStamp, x: event.clientX });
+      if (g.samples.length > 24) g.samples.shift();
       paint(g);
     }, { passive: true, capture: true });
 
-    const end = (event: PointerEvent) => {
+    const end = (event: PointerEvent, cancelled: boolean) => {
       const g = gesture;
       if (!g || event.pointerId !== pointerId) return;
-      const raw = event.clientX - g.startX;
       if (!g.moved) {
         gesture = null;
         pointerId = undefined;
         return;
       }
-      // Opening drags travel right, closing drags travel left; judge each by its own axis.
-      if (g.wasOpen) settle(raw > -closeDistance);
-      else settle(raw >= openDistance);
+      // Revert to where the gesture started: the browser took the pointer away, so the
+      // finger's last position says nothing about what the user wanted.
+      if (cancelled) {
+        settle(g.wasOpen);
+        return;
+      }
+      // Trust the last tracked frame instead of the release coordinates: on touch the
+      // pointerup can land well away from where the finger actually lifted.
+      const raw = g.dx;
+      const speed = g.samples.length > 1 ? velocity(g) : 0;
+      if (g.wasOpen) {
+        // Opening drags travel right, closing drags travel left; judge each by its own axis.
+        const flick = speed <= -flickVelocity && raw <= -flickDistance;
+        settle(!(raw <= -closeDistance || flick));
+      } else {
+        const flick = speed >= flickVelocity && raw >= flickDistance;
+        settle(raw >= openDistance || flick);
+      }
     };
 
-    window.addEventListener('pointerup', end, { passive: true, capture: true });
-    window.addEventListener('pointercancel', end, { passive: true, capture: true });
+    window.addEventListener('pointerup', event => end(event, false), { passive: true, capture: true });
+    window.addEventListener('pointercancel', event => end(event, true), { passive: true, capture: true });
   }
 </script>

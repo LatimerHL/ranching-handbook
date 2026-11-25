@@ -5,8 +5,9 @@
  *    导致图标按钮的悬停提示永远不出现。这里按真实输入事件在 <html> 上打
  *    `data-input="mouse|touch"`，CSS 据此单独放行悬停提示。
  * 2. `popovertarget` 依赖浏览器的原生实现，部分安卓浏览器上按钮点了毫无反应
- *    （普通链接却正常）。这里统一用 JS 接管按钮：能调用 Popover API 就走 API，
- *    不能就退化成 class 显隐。
+ *    （普通链接却正常）。这里统一用 JS 接管按钮，面板开合只认 `is-open` 这个 class。
+ *    原生 Popover API 完全不参与：两套状态并存时，手势关闭只改 class，原生 popover
+ *    仍留在顶层，抽屉松手后会被它拽回原位——这正是「拖拽收起又回弹」的来源。
  * 3. 安卓模拟器/带触控映射的鼠标会同时发出鼠标与触摸事件，导致鼠标也能拖出
  *    侧栏抽屉。这里记录最近一次真实指针类型，供拖拽逻辑判断。
  */
@@ -14,9 +15,6 @@
 // The shim drives every browser: native popovertarget has been unreliable (missing API on some
 // Android builds, double-toggling elsewhere) and it animates differently per engine. One JS path
 // keeps the drawer/panel motion identical, at the cost of a single `is-open` class.
-const nativePopover = typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype;
-const supportsPopover = false;
-
 let lastPointerType = '';
 let lastPointerAt = 0;
 
@@ -25,14 +23,18 @@ export function lastPointerWasMouse(withinMs = 500) {
 }
 
 export function isPopoverOpen(element: HTMLElement) {
-  return supportsPopover ? element.matches(':popover-open') : element.classList.contains('is-open');
+  return element.classList.contains('is-open');
+}
+
+function syncTriggers(element: HTMLElement, open: boolean) {
+  for (const trigger of document.querySelectorAll('[data-popover-target]')) {
+    if (trigger.getAttribute('data-popover-target') === element.id) {
+      trigger.setAttribute('aria-expanded', String(open));
+    }
+  }
 }
 
 export function openPopover(element: HTMLElement) {
-  if (supportsPopover) {
-    if (!element.matches(':popover-open')) element.showPopover();
-    return;
-  }
   // A drag that never received its pointerup leaves these behind; they pin the drawer at its
   // dragged offset, so opening it by trigger would look like "the button does nothing".
   const hero = element.closest('.home-hero') as HTMLElement | null;
@@ -45,15 +47,13 @@ export function openPopover(element: HTMLElement) {
   // transform/opacity transition run; there is nothing to seed here.
   element.classList.add('is-open');
   element.inert = false;
+  syncTriggers(element, true);
 }
 
 export function closePopover(element: HTMLElement) {
-  if (supportsPopover) {
-    if (element.matches(':popover-open')) element.hidePopover();
-    return;
-  }
   element.classList.remove('is-open');
   element.inert = true;
+  syncTriggers(element, false);
 }
 
 // Some Android builds report an empty pointerType (or "pen") for a real mouse, and a few never send
@@ -84,40 +84,11 @@ function trackInput() {
 }
 
 function bindTriggers() {
-  const lastFired = new WeakMap<Element, number>();
-  let lastToggleAt = 0;
-
-  function toggleFor(trigger: Element) {
-    // 原生 popovertarget 与脚本可能各处理一次，互相抵消就表现为「点了没反应」。
-    const now = performance.now();
-    const fired = lastFired.get(trigger) ?? 0;
-    if (now - fired < 400) return;
-    lastFired.set(trigger, now);
-    lastToggleAt = now;
-
-    const target = document.getElementById(trigger.getAttribute('popovertarget') ?? '');
-    if (!target) return;
-
-    const element = target as HTMLElement;
-    const action = trigger.getAttribute('popovertargetaction') ?? 'toggle';
-    const before = isPopoverOpen(element);
-    const open = action === 'show' ? true : action === 'hide' ? false : !before;
-    for (const other of document.querySelectorAll<HTMLElement>('[popover]')) {
-      if (other !== element && isPopoverOpen(other)) closePopover(other);
-    }
-    if (open) openPopover(element);
-    else closePopover(element);
-    window.__popoverShimUsed = (window.__popoverShimUsed ?? 0) + 1;
-    (window as any).__lastTrigger = (trigger.getAttribute('popovertarget') ?? '?') + (open ? ':open' : ':close');
-  }
-
-  // One physical press must produce exactly one toggle. A slow press (button held longer than the
-  // 400 ms debounce) would otherwise toggle on the way down AND again on the way up, which reads to
-  // the user as "clicking the button does nothing". So: the press arms, the release disarms without
-  // toggling; only a release that never saw a press may toggle on its own.
-  // Keep this deliberately boring: one browser-generated click toggles once. Earlier versions also
-  // toggled on pointerdown / pointerup / mousedown / mouseup, and every one of those extra paths
-  // eventually fired twice on some device and left the drawer looking dead.
+  // One browser-generated click toggles once. The coordinates are not trusted: Chromium on Android
+  // can deliver a mouse click aimed at a stale position, so when the click did not land on a trigger
+  // we hit-test the point it reports and the last position we saw. Extra pointerdown/pointerup paths
+  // used to toggle as well and every one of them eventually fired twice on some device, leaving the
+  // drawer looking dead.
   // Chromium on Android ignores the ACTION_DOWN/ACTION_UP that carry a mouse press and only uses
   // ACTION_BUTTON_PRESS/RELEASE, so when hover is unavailable the click can arrive with a stale (or
   // zero) position and hit the wrong element. Remember where the pointer actually is and fall back
@@ -131,54 +102,58 @@ function bindTriggers() {
   window.addEventListener('pointermove', remember, { capture: true, passive: true });
   window.addEventListener('mousemove', remember as EventListener, { capture: true, passive: true });
 
-  // One browser-generated click toggles once. The coordinates are not trusted: Chromium on Android
-  // can deliver a mouse click aimed at a stale position, so when the click did not land on a trigger
-  // we hit-test the point it reports and the last position we saw.
   let lastToggle = 0;
-  const guarded = (popover: HTMLElement) => {
+  const guarded = (panel: HTMLElement, open: boolean) => {
     const now = performance.now();
     if (now - lastToggle < 350) return;
     lastToggle = now;
-    if (isPopoverOpen(popover)) closePopover(popover);
-    else openPopover(popover);
+    for (const other of document.querySelectorAll<HTMLElement>('[data-popover-panel]')) {
+      if (other !== panel && isPopoverOpen(other)) closePopover(other);
+    }
+    if (open) openPopover(panel);
+    else closePopover(panel);
     window.__popoverShimUsed = (window.__popoverShimUsed ?? 0) + 1;
-    (window as any).__lastTrigger = (popover.id || '?') + (isPopoverOpen(popover) ? ':open' : ':close');
+    (window as any).__lastTrigger = (panel.id || '?') + (open ? ':open' : ':close');
   };
 
-  const resolve = (element: Element | null): HTMLElement | null => {
-    const holder = element?.closest?.('[popovertarget]');
-    if (!holder) return null;
-    const popover = document.getElementById(holder.getAttribute('popovertarget') ?? '');
-    return popover && popover.hasAttribute('popover') ? popover : null;
+  const resolve = (element: Element | null) => {
+    const trigger = element?.closest?.('[data-popover-target]');
+    if (!trigger) return null;
+    const panel = document.getElementById(trigger.getAttribute('data-popover-target') ?? '');
+    if (!panel || !panel.hasAttribute('data-popover-panel')) return null;
+    return {
+      panel: panel as HTMLElement,
+      action: trigger.getAttribute('data-popover-action') ?? 'toggle',
+    };
   };
 
   document.addEventListener('click', event => {
     const hit = resolve(event.target as Element | null)
       ?? resolve(document.elementFromPoint(event.clientX, event.clientY))
       ?? (pointerX >= 0 ? resolve(document.elementFromPoint(pointerX, pointerY)) : null);
-    if (hit) guarded(hit);
+    if (!hit) return;
+    const open = hit.action === 'show' ? true : hit.action === 'hide' ? false : !isPopoverOpen(hit.panel);
+    guarded(hit.panel, open);
   }, true);
 }
 
 function fallbackDismiss() {
-  if (supportsPopover) return;
-  document.documentElement.classList.add('no-popover');
-  for (const element of document.querySelectorAll<HTMLElement>('[popover]')) {
+  for (const element of document.querySelectorAll<HTMLElement>('[data-popover-panel]')) {
     if (!element.classList.contains('is-open')) element.inert = true;
   }
 
   document.addEventListener('pointerdown', event => {
-    const open = [...document.querySelectorAll<HTMLElement>('[popover].is-open')];
+    const open = [...document.querySelectorAll<HTMLElement>('[data-popover-panel].is-open')];
     if (!open.length) return;
     const target = event.target as Element | null;
     if (!target) return;
-    if (open.some(element => element.contains(target)) || target.closest?.('[popovertarget]')) return;
+    if (open.some(element => element.contains(target)) || target.closest?.('[data-popover-target]')) return;
     for (const element of open) closePopover(element);
   }, true);
 
   document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
-    for (const element of document.querySelectorAll<HTMLElement>('[popover].is-open')) closePopover(element);
+    for (const element of document.querySelectorAll<HTMLElement>('[data-popover-panel].is-open')) closePopover(element);
   });
 }
 
@@ -305,7 +280,7 @@ function diagnostics() {
   }, { capture: true });
   window.addEventListener('click', event => {
     stats.click += 1;
-    const trigger = (event.target as Element | null)?.closest?.('[popovertarget]');
+    const trigger = (event.target as Element | null)?.closest?.('[data-popover-target]');
     push('click → ' + describe(event.target) + (trigger ? ' [trigger]' : ''));
   }, { capture: true });
   window.addEventListener('touchstart', () => {
@@ -326,7 +301,7 @@ function diagnostics() {
   const render = () => {
     const lines = [
       'UA ' + navigator.userAgent.slice(0, 70),
-      'popover=' + nativePopover + ' shim=' + !supportsPopover
+      'popover=class-only'
         + ' hover/any=' + media('(hover: hover)') + '/' + media('(any-hover: hover)')
         + ' point/any=' + media('(pointer: fine)') + '/' + media('(any-pointer: fine)'),
       'counts down=' + stats.down + ' up=' + stats.up + ' click=' + stats.click
