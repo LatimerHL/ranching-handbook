@@ -125,6 +125,11 @@ for (const { orientation, scene } of scenes) {
   }
 }
 ---
+<noscript>
+  <style is:inline>
+    .home-key-art-rig[data-rig-pending] { visibility: visible; }
+  </style>
+</noscript>
 
 {scenes.map(({ orientation, scene, beam, background }) => (
   <div class="home-key-art" data-orientation={orientation} data-voice-src={voiceBase} aria-hidden="true">
@@ -178,6 +183,7 @@ for (const { orientation, scene } of scenes) {
                     data-piece-id={piece.id}
                     data-asset-id={assetId(piece.file)}
                     data-rig={rig.item}
+                    data-rig-pending=""
                     data-voice={voiceOf(piece.file)}
                     style={{ ...placement, filter: piece.filter }}
                   >
@@ -378,6 +384,9 @@ for (const { orientation, scene } of scenes) {
   /* Every layer of a cut-out slime is drawn on the flat sprite's canvas, so the parts only have to
      fill the wrapper the sprite used to fill. */
   .home-key-art-rig { display: block; }
+  /* A slime comes apart into parts, so it must never be painted one part at a time: until every
+     layer has decoded the whole rig stays out, and then it appears in one piece. */
+  .home-key-art-rig[data-rig-pending] { visibility: hidden; }
   .home-key-art-rig > .home-key-art-part { position: absolute; inset: 0; width: 100%; height: 100%; }
   /* The resting face is the only one painted; the other stays decoded underneath, ready to swap in. */
   .home-key-art-face:not([data-visible]) { opacity: 0; }
@@ -418,5 +427,9 @@ for (const { orientation, scene } of scenes) {
     from { opacity: 0; scale: .84; }
     20%, 75% { opacity: 1; }
     to { opacity: 0; scale: 1.16; }
+  }
+  /* Without scripting nothing clears the pending flag, so paint the rigs anyway. */
+  @media (scripting: none) {
+    .home-key-art-rig[data-rig-pending] { visibility: visible; }
   }
 </style>

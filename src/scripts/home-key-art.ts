@@ -164,7 +164,25 @@ export async function prepareHomeKeyArt(hero: HTMLElement, destination: URL, sig
   preparedHomes.set(hero, { artwork, loaded, voices });
 }
 
+// A cut-out slime is only meaningful as a whole: revealing it part by part reads as a body that
+// lost its head to a wing that has not arrived yet. Each rig therefore stays invisible until every
+// one of its own layers has decoded, and then appears in one piece.
+const rigRevealFallbackMs = 8000;
+
+function revealRigs(hero: HTMLElement) {
+  const rigs = [...hero.querySelectorAll<HTMLElement>('.home-key-art-rig[data-rig-pending]')];
+  if (!rigs.length) return;
+  const reveal = (rig: HTMLElement) => rig.removeAttribute('data-rig-pending');
+  for (const rig of rigs) {
+    const layers = [...rig.querySelectorAll('img')];
+    Promise.allSettled(layers.map(image => image.decode())).then(() => reveal(rig));
+  }
+  // Insurance: a layer that never settles must not leave the slime missing for good.
+  setTimeout(() => rigs.forEach(reveal), rigRevealFallbackMs);
+}
+
 function finishKeyArtLoad(hero: HTMLElement, loaded: boolean, voices?: VoiceLibrary) {
+  revealRigs(hero);
   const scenes = [...hero.querySelectorAll<HTMLElement>('.home-key-art')];
   if (!loaded) {
     // Leave the page usable if a graphic fails, without playing an incomplete entrance.
@@ -196,6 +214,9 @@ async function startKeyArt() {
   // Both orientations must be ready so a resize during the entrance can switch scenes.
   const voices = startVoicePreload(hero, document.baseURI);
   const artworkDone = decodeGraphics(hero, [...hero.querySelectorAll('img')], document.baseURI);
+  // The live <img> nodes are the ones that paint here, so each rig can land as soon as its own
+  // layers are ready instead of waiting for the whole hero.
+  revealRigs(hero);
   const [loaded] = await Promise.all([artworkDone, settleVoice(voices, artworkDone)]);
   if (mountedHero === hero && hero.isConnected) finishKeyArtLoad(hero, loaded, voices);
 }
