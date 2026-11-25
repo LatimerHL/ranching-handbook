@@ -345,6 +345,17 @@ for (const { orientation, scene } of scenes) {
     visibility: visible;
     transition: opacity 420ms var(--ease-enter, cubic-bezier(.22, .61, .21, 1));
   }
+  /* `visibility` is re-declarable, so the orientation rules above pin the active scene visible even
+     while the document still hides its own direct children behind the loading cover. Without this
+     the artwork paints its background layers while the slimes (frozen by `data-rig-pending`) and
+     Beatrix are still in flight, which reads as half a picture. Both scenes stay hidden until the
+     loading flag goes away, which only happens once every hero image has decoded. */
+  @media (scripting: enabled) {
+    :global(body[data-page-loading]) .home-key-art[data-orientation] {
+      visibility: hidden;
+      opacity: 0;
+    }
+  }
   .home-key-art-frame {
     --frame-width: max(100cqw, calc(100cqh * var(--poster-width) / var(--poster-height)));
     --frame-height: calc(var(--frame-width) * var(--poster-height) / var(--poster-width));
