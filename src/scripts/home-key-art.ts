@@ -23,10 +23,6 @@ let unmountBlink: (() => void) | undefined;
 let unmountVoice: (() => void) | undefined;
 let mountedVoices: VoiceLibrary | undefined;
 
-// The clips travel with the artwork, but they must never hold up the entrance: whatever has arrived
-// by the deadline is used, and the rest keeps landing in the same map for later pokes.
-const voiceDeadlineMs = 1500;
-
 function stopKeyArtEntrance() {
   entrance?.revert();
   entrance = undefined;
@@ -114,17 +110,12 @@ function startVoicePreload(hero: HTMLElement, base: string | URL, signal?: Abort
   }
 }
 
-// The clips ride along with the artwork: they start first, and the overlay waits for them only as
-// long as it is waiting for the graphics anyway.
-async function settleVoice(voices: VoiceLibrary | undefined, until: Promise<unknown>) {
+// The clips are part of the loading step: the overlay stays up until the last one is in hand, so the
+// first poke never waits on the network. `ready` settles even when a clip fails (the click retries
+// that one), and a data-saver user skips the preload entirely, so this cannot hang the page.
+async function settleVoice(voices: VoiceLibrary | undefined) {
   if (!voices) return;
-  // Ride along with the artwork: audio gets at most as long as the graphics take, so adding it can
-  // never make the entrance slower than it was without voices.
-  await Promise.race([
-    voices.ready,
-    until.then(() => undefined),
-    new Promise<void>(resolve => setTimeout(resolve, voiceDeadlineMs)),
-  ]);
+  await voices.ready;
 }
 
 async function decodeGraphics(hero: HTMLElement, artwork: HTMLImageElement[], base: string | URL, signal?: AbortSignal) {
@@ -153,11 +144,10 @@ export async function prepareHomeKeyArt(hero: HTMLElement, destination: URL, sig
     image.src = new URL(placeholder.getAttribute('src')!, destination).href;
     return { placeholder, image };
   });
-  // Start the clips first so they download while the artwork decodes; the overlay never waits longer
-  // for a clip than it waits for a graphic.
+  // Start the clips first so they download while the artwork decodes; the swap waits for both.
   const voices = startVoicePreload(hero, destination, signal);
   const artworkDone = decodeGraphics(hero, artwork.map(({ image }) => image), destination, signal);
-  const [loaded] = await Promise.all([artworkDone, settleVoice(voices, artworkDone)]);
+  const [loaded] = await Promise.all([artworkDone, settleVoice(voices)]);
   if (signal.aborted) return;
   for (const { placeholder } of artwork) placeholder.removeAttribute('src');
   hero.ownerDocument.body.removeAttribute('data-page-loading');
@@ -217,7 +207,7 @@ async function startKeyArt() {
   // The live <img> nodes are the ones that paint here, so each rig can land as soon as its own
   // layers are ready instead of waiting for the whole hero.
   revealRigs(hero);
-  const [loaded] = await Promise.all([artworkDone, settleVoice(voices, artworkDone)]);
+  const [loaded] = await Promise.all([artworkDone, settleVoice(voices)]);
   if (mountedHero === hero && hero.isConnected) finishKeyArtLoad(hero, loaded, voices);
 }
 
