@@ -171,6 +171,15 @@ html.home * {
   -webkit-touch-callout: none;
 }
 
+/* The key art is one picture assembled from many <img> sprites, so pressing a slime is also pressing
+   an image: move the pointer with the button down and the browser starts its native image drag, which
+   leaves a ghost of the sprite under the cursor and swallows the click that pokes it. Chromium and
+   Safari honour `-webkit-user-drag`; Firefox has no such property and relies on the dragstart guard
+   in src/scripts/home-drag.ts. */
+html.home img {
+  -webkit-user-drag: none;
+}
+
 html.home :is(input, textarea, [contenteditable="true"]) {
   -webkit-user-select: text;
   user-select: text;
