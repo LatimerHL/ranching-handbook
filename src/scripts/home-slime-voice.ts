@@ -3,9 +3,9 @@
 // and a repeat is the easiest way to make them feel smaller than they are.
 //
 // Every slime has its own element, so two pokes on two slimes overlap the way a pen of animals
-// would: poking the bat does not cut the rabbit off mid-word. A slime that is still talking ignores
-// further pokes at itself, though: its own clip plays to the end, and the next poke after that
-// answers as usual.
+// would: poking the bat does not cut the rabbit off mid-word. A piece that is still wobbling or
+// still talking ignores further pokes at itself -- its clip plays to the end, and the next poke after
+// that answers as usual. That rule is shared with the wobble in `./slime-poke`.
 //
 // The clips are part of the page-loading step: they are fetched while the loading overlay is up and
 // kept as object URLs, so the first poke has nothing to wait for. Clips are small (a few hundred
@@ -13,6 +13,7 @@
 // a network round trip is most visible.
 
 import { slimeVoices } from '../data/slime-voice';
+import { blocked, hold, release } from './slime-poke';
 
 // Relative library path (`cotton/vo_cotton_hop_01.m4a`, `shared/...`) -> object URL for the bytes in hand.
 export type VoiceClips = Map<string, string>;
@@ -117,6 +118,9 @@ export function mountSlimeVoice(hero: HTMLElement, preloaded?: VoiceClips): () =
     const item = piece.dataset.voice;
     const base = piece.closest<HTMLElement>('.home-key-art')?.dataset.voiceSrc;
     if (!item || !base) return;
+    // Mid-wobble, or still talking: the poke is spent. The wobble checks the same answer for this
+    // click, so the two effects never restart each other's slime.
+    if (blocked(event, piece)) return;
     // Let this slime finish what it is saying rather than cutting itself off. Other slimes are
     // untouched: their clips keep playing under this one.
     if (speaking.has(item)) return;
@@ -132,13 +136,17 @@ export function mountSlimeVoice(hero: HTMLElement, preloaded?: VoiceClips): () =
     if (player.src !== url) player.src = url;
     else player.currentTime = 0;
     speaking.add(item);
-    const release = () => speaking.delete(item);
-    player.addEventListener('ended', release, { once: true });
+    hold(piece, 'voice');
+    const done = () => {
+      speaking.delete(item);
+      release(piece, 'voice');
+    };
+    player.addEventListener('ended', done, { once: true });
     // A rejected play() means the browser refused (no gesture, or the element was torn down); hand the
     // slime back so the next poke can try again.
     void player.play().catch(() => {
-      player.removeEventListener('ended', release);
-      release();
+      player.removeEventListener('ended', done);
+      done();
     });
     // Let the rest of the page react to the same poke (a mouth, a squash) without knowing about audio.
     piece.dispatchEvent(new CustomEvent('slime-voice', { bubbles: true, detail: { item, file, piece } }));

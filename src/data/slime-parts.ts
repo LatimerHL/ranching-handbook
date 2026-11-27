@@ -35,7 +35,9 @@ export const slimeRigs: Record<string, SlimeRig> = {
   },
   'background-slimes/honey-slime.webp': {
     item: 'honey',
-    layers: ['drip2', 'body', 'crown', 'drip1'],
+    // The two drip blobs are not part of the stack: the home script sheds them from the underside as
+    // falling drops, so a static blob stuck to the body would double up with them.
+    layers: ['body', 'crown'],
   },
   'background-slimes/ringtail-slime.webp': {
     item: 'ringtail',
@@ -47,7 +49,9 @@ export const slimeRigs: Record<string, SlimeRig> = {
   },
   'foreground/slimes/batty-slime.webp': {
     item: 'batty',
-    layers: ['ear1', 'ear2', 'body', 'wing1', 'wing2'],
+    // wing1 is the small left wing: the redrawn art carries it further down the flank so it can tuck
+    // under the body and swing there without the seam showing, so it paints below the body, not above.
+    layers: ['wing1', 'ear1', 'ear2', 'body', 'wing2'],
     face: 'eyes',
   },
   'foreground/slimes/flutter-slime.webp': {

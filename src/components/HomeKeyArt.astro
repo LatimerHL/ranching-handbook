@@ -3,6 +3,8 @@ import { sitePath } from '../site.mjs';
 import landscape from '../data/home-scene.json';
 import portrait from '../data/home-scene-portrait.json';
 import { slimeRigs } from '../data/slime-parts';
+import { slimePivots } from '../data/slime-pivots';
+import { partMotions, bodySway, type PartMotion } from '../data/slime-motion';
 import { slimeVoices } from '../data/slime-voice';
 import HomeLightAccents from './HomeLightAccents.astro';
 
@@ -40,15 +42,52 @@ const percent = (size: number, total: number) => (size / total * 100) + '%';
 // canvas, so the wrapper inherits the flat sprite's geometry and the parts stay registered to it.
 const partSrc = (item: string, layer: string) => `${assets}parts/${item}/${layer}.webp`;
 const faceLayers = ['eyes', 'wink'] as const;
+// A part's ambient swing turns around the point where it leaves the body, so the pivot travels with
+// the layer as its transform-origin; the swing size, cycle and phase ride along as custom properties
+// so the stylesheet can run one keyframe pair for every part.
+const motionOf = (motions: PartMotion[] | undefined, part: string) =>
+  motions?.find(motion => motion.part === part);
+const motionStyle = (motion: PartMotion | undefined) => motion === undefined ? undefined : {
+  'transform-origin': `${(motion.origin[0] * 100).toFixed(2)}% ${(motion.origin[1] * 100).toFixed(2)}%`,
+  '--swing': `${motion.angle}deg`,
+  ...(motion.turn === undefined ? {} : { '--turn': `${motion.turn}deg` }),
+  // A wing that turns edge-on narrows; stretching it along the hinge keeps the span, which is what the
+  // far wing is already drawn with.
+  ...(motion.stretch === undefined ? {} : { '--stretch': `${motion.stretch}` }),
+  // Ears are flicked by script at their own pace; a duration would be ignored anyway.
+  ...(motion.kind === 'twitch' ? {} : {
+    '--motion-duration': `${motion.period}ms`,
+    '--motion-delay': `${motion.offset}ms`,
+  }),
+};
+/** Style for the moving half of a `fold` part: the crease position, which side swings, and the clock. */
+const foldStyle = (fold: { at: number; side: 'left' | 'right' }, motion: PartMotion) => ({
+  '--fold-x': `${(fold.at * 100).toFixed(2)}%`,
+  '--fold-deg': fold.side === 'left' ? '176deg' : '-176deg',
+  '--motion-duration': `${motion.period}ms`,
+  '--motion-delay': `${motion.offset}ms`,
+});
+/** Style for a `clip` part's moving half: the split line is both the clip edge and the pivot.
+ *  Both halves overlap this much so the antialiased edges cannot leave a hairline between them. */
+const clipOverlap = 0.02;
+const clipStyle = (clip: number, motion: PartMotion) => ({
+  'clip-path': `inset(${((clip - clipOverlap) * 100).toFixed(2)}% 0 0 0)`,
+  'transform-origin': `${(motion.origin[0] * 100).toFixed(2)}% ${(clip * 100).toFixed(2)}%`,
+  '--swing': `${motion.angle}deg`,
+  '--motion-duration': `${motion.period}ms`,
+  '--motion-delay': `${motion.offset}ms`,
+});
+/** The still half of a `clip` part: everything above the split, plus the overlap band. */
+const clipBase = (clip: number) => ({ 'clip-path': `inset(0 0 ${((1 - clip - clipOverlap) * 100).toFixed(2)}% 0)` });
 const position = (rect: Rect, canvas: Dimensions) => ({
   left: percent(rect.x, canvas.width),
   top: percent(rect.y, canvas.height),
   width: percent(rect.width, canvas.width),
   height: percent(rect.height, canvas.height),
 });
-// Face center measured in the 760 × 1124 Beatrix sprite.
+// Face center measured in the 760 脳 1124 Beatrix sprite.
 const faceCenter = { x: 232 / 760, y: 196 / 1124 };
-// The rays converge here in the original 1254 × 1254 sky sprite.
+// The rays converge here in the original 1254 脳 1254 sky sprite.
 const beamFocus = { x: 633 / 1254, y: 957 / 1254 };
 const backgroundRect = (scene: Scene) => {
   const background = scene.layers.find(layer => layer.id === 'background');
@@ -100,11 +139,17 @@ const assetsByPieceId = new Map<string, string>();
 // `-slime` suffix: `foreground/slimes/cotton-slime.webp` -> `cotton`. The sea hen, the pogofruit and
 // the plorts have no voice library, so they simply carry no `data-voice` and stay silent.
 const voiceBase = assets + 'voice/';
-const slimeOf = (file: string) =>
-  (file.split('/').pop() ?? '').replace(/\.(?:png|webp)$/, '').replace(/-?slime$/, '');
+// Only a slime answers a poke: the sprite name has to carry the `-slime` suffix, so the pink plort
+// crystal (which is also just "pink") stays quiet.
+const slimeOf = (file: string) => {
+  // Plorts are pickups, not creatures: a plort named after its slime would borrow that slime's voice.
+  if (file.startsWith('foreground/plorts/')) return undefined;
+  const name = (file.split('/').pop() ?? '').replace(/\.(?:png|webp)$/, '');
+  return name.endsWith('-slime') ? name.slice(0, -'-slime'.length) : name;
+};
 const voiceOf = (file: string) => {
   const item = slimeOf(file);
-  return slimeVoices[item] ? item : undefined;
+  return item && slimeVoices[item] ? item : undefined;
 };
 
 for (const { orientation, scene } of scenes) {
@@ -174,6 +219,15 @@ for (const { orientation, scene } of scenes) {
                   opacity: piece.opacity,
                 };
                 const rig = piece.tint ? undefined : slimeRigs[piece.file];
+                const pivot = piece.tint ? undefined : slimePivots[piece.file];
+                const motions = piece.tint ? undefined : partMotions[piece.file];
+                const sway = piece.tint ? undefined : bodySway[piece.file];
+                // The wobble pivots on the eye line (the chicken's claws): the jelly wrapper carries
+                // the transform origin, while the piece above it keeps the geometry, the authored
+                // rotation in the portrait scene, and the idle breathing.
+                const jellyStyle = pivot === undefined
+                  ? undefined
+                  : { '--jelly-y': `${(pivot * 100).toFixed(1)}%` };
                 const artwork = rig ? (
                   // The rig wrapper is the piece: it carries the geometry the flat sprite used to
                   // carry, so the idle breathing and the pointer parallax still move one body, not
@@ -184,48 +238,130 @@ for (const { orientation, scene } of scenes) {
                     data-asset-id={assetId(piece.file)}
                     data-rig={rig.item}
                     data-rig-pending=""
+                    data-jelly={pivot === undefined ? undefined : ''}
+                    data-sway={sway === undefined ? undefined : ''}
                     data-voice={voiceOf(piece.file)}
-                    style={{ ...placement, filter: piece.filter }}
+                    style={{ ...placement, filter: piece.filter, '--sway-angle': sway === undefined ? undefined : `${sway}deg` }}
                   >
-                    {rig.layers.map(part => (
-                      <img
-                        class="home-key-art-part"
-                        data-part={part}
-                        data-hidden={rig.hidden?.includes(part) ? '' : undefined}
-                        src={partSrc(rig.item, part)}
-                        alt=""
-                        width={Math.round(piece.width)}
-                        height={Math.round(piece.height)}
-                        decoding="async"
-                      />
-                    ))}
-                    {/* Both faces stay in the document so a blink can swap them without a request. */}
-                    {faceLayers.map(face => (
-                      <img
-                        class={`home-key-art-part home-key-art-face home-key-art-face--${face}`}
-                        data-face={face}
-                        data-visible={face === (rig.face ?? 'eyes') ? '' : undefined}
-                        src={partSrc(rig.item, face)}
-                        alt=""
-                        width={Math.round(piece.width)}
-                        height={Math.round(piece.height)}
-                        decoding="async"
-                      />
-                    ))}
+                    <span class="home-key-art-jelly" style={jellyStyle}>
+                      {rig.layers.map(part => {
+                        const motion = motionOf(motions, part);
+                        const fold = motion?.fold;
+                        const clip = motion?.clip;
+                        return (
+                          <>
+                            <img
+                              class="home-key-art-part"
+                              data-part={part}
+                              data-motion={motion?.kind}
+                              data-fold-base={fold === undefined ? undefined : fold.side}
+                              data-hidden={rig.hidden?.includes(part) ? '' : undefined}
+                              style={clip === undefined
+                                ? (fold === undefined ? motionStyle(motion) : { ...motionStyle(motion), '--fold-x': `${(fold.at * 100).toFixed(2)}%` })
+                                : clipBase(clip)}
+                              src={partSrc(rig.item, part)}
+                              alt=""
+                              width={Math.round(piece.width)}
+                              height={Math.round(piece.height)}
+                              decoding="async"
+                            />
+                            {/* A `clip` part is the same art twice: the top half exactly as painted, and the
+                                bottom half carrying the motion with its pivot on the split, so the line stays
+                                put while the far end swings. */}
+                            {clip === undefined ? null : (
+                              <img
+                                class="home-key-art-part"
+                                data-part={`${part}-tail`}
+                                data-motion={motion?.kind}
+                                style={clipStyle(clip, motion)}
+                                src={partSrc(rig.item, part)}
+                                alt=""
+                                width={Math.round(piece.width)}
+                                height={Math.round(piece.height)}
+                                decoding="async"
+                              />
+                            )}
+                            {/* The moving half of a folded part: the same art, clipped to the flap side of the
+                                crease, swung 180 degrees about that crease so it lies back over the wing. */}
+                            {fold === undefined ? null : (
+                              <img
+                                class="home-key-art-part home-key-art-fold"
+                                data-fold={fold.side}
+                                data-fold-of={part}
+                                style={foldStyle(fold, motion)}
+                                src={partSrc(rig.item, part)}
+                                alt=""
+                                width={Math.round(piece.width)}
+                                height={Math.round(piece.height)}
+                                decoding="async"
+                              />
+                            )}
+                          </>
+                        );
+                      })}
+                      {/* Both faces stay in the document so a blink can swap them without a request.
+                          A face is painted on the body, so it takes the body's own motion: if the body
+                          sags, the eyes have to sag with it instead of floating off the surface. A body
+                          split by `clip` keeps its head still, so its face keeps still too. */}
+                      {faceLayers.map(face => {
+                        const bodyMotion = motionOf(motions, 'body');
+                        const faceMotion = bodyMotion?.clip === undefined ? bodyMotion : undefined;
+                        return (
+                          <img
+                            class={`home-key-art-part home-key-art-face home-key-art-face--${face}`}
+                            data-face={face}
+                            data-part={face}
+                            data-motion={faceMotion?.kind}
+                            data-visible={face === (rig.face ?? 'eyes') ? '' : undefined}
+                            style={motionStyle(faceMotion)}
+                            src={partSrc(rig.item, face)}
+                            alt=""
+                            width={Math.round(piece.width)}
+                            height={Math.round(piece.height)}
+                            decoding="async"
+                          />
+                        );
+                      })}
+                    </span>
                   </span>
                 ) : (
                   <>
-                    <img
-                      class="home-key-art-piece"
-                      data-piece-id={piece.id}
-                      data-asset-id={assetId(piece.file)}
-                      data-voice={voiceOf(piece.file)}
-                      src={src}
-                      alt=""
-                      width={Math.round(piece.width)}
-                      height={Math.round(piece.height)}
-                      style={{ ...placement, filter: piece.filter }}
-                    />
+                    {pivot === undefined ? (
+                      <img
+                        class="home-key-art-piece"
+                        data-piece-id={piece.id}
+                        data-asset-id={assetId(piece.file)}
+                        data-voice={voiceOf(piece.file)}
+                        src={src}
+                        alt=""
+                        width={Math.round(piece.width)}
+                        height={Math.round(piece.height)}
+                        style={{ ...placement, filter: piece.filter }}
+                      />
+                    ) : (
+                      // A sprite with no cut-outs still wobbles on its eye line, so it needs the same
+                      // wrapper the rigs use: the outer span holds the geometry, the jelly inside it
+                      // is the part that squashes.
+                      <span
+                        class="home-key-art-piece"
+                        data-piece-id={piece.id}
+                        data-asset-id={assetId(piece.file)}
+                        data-jelly=""
+                        data-voice={voiceOf(piece.file)}
+                        style={{ ...placement, filter: piece.filter }}
+                      >
+                        <span class="home-key-art-jelly" style={jellyStyle}>
+                          <img
+                            class="home-key-art-sprite"
+                            src={src}
+                            alt=""
+                            width={Math.round(piece.width)}
+                            height={Math.round(piece.height)}
+                            decoding="async"
+                          />
+                        </span>
+                      </span>
+                    )}
                     {piece.tint && (
                       <span
                         class="home-key-art-piece home-key-art-tint"
@@ -365,7 +501,7 @@ for (const { orientation, scene } of scenes) {
     width: var(--frame-width);
     height: var(--frame-height);
     /* Backdrop in the artwork's own colours: while a layer is still rasterising, the compositor fills
-       the gap with what is behind it — a light page background reads as a white block. Theme-scoped so
+       the gap with what is behind it 鈥揳 light page background reads as a white block. Theme-scoped so
        the dark theme does not show a pale sky through the entry fade. */
     background: var(--key-art-backdrop, linear-gradient(180deg, #9fc9e6 0%, #b6dcee 32%, #a3cee2 60%, #7fa9c6 100%));
   }
@@ -391,14 +527,38 @@ for (const { orientation, scene } of scenes) {
   .home-key-art-piece { position: absolute; transform-origin: top left; }
   /* The artwork is a decorative backdrop and lets the pointer fall through. The slimes are the one
      exception: a poke is a click, and the piece has to be a hit target to hear it. */
-  .home-key-art-piece[data-voice] { pointer-events: auto; }
+  .home-key-art-piece[data-voice],
+  .home-key-art-piece[data-jelly] { pointer-events: auto; }
+  /* A poke squashes the body around the line through its eyes (the chicken's claws), which sits
+     somewhere inside the sprite, so the wobble needs its own layer: the piece above it owns the
+     geometry, the authored rotation and the idle breathing, and this one only scales. */
+  .home-key-art-jelly {
+    position: absolute;
+    inset: 0;
+    display: block;
+    transform-origin: 50% var(--jelly-y, 50%);
+    will-change: transform;
+  }
+  .home-key-art-jelly > .home-key-art-sprite { display: block; width: 100%; height: 100%; }
+  /* A falling drop is a copy of one of the honey artwork's drip blobs: it fills the canvas so it starts
+     exactly where the artwork drew it, then the script moves it down and out of sight. It is created at
+     runtime, so the rule has to be global -- a scoped selector would compile to an attribute this node
+     never carries, and the image would then paint at its intrinsic size instead of the rig's box. */
+  :global(.home-key-art-drip) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
   /* Every layer of a cut-out slime is drawn on the flat sprite's canvas, so the parts only have to
      fill the wrapper the sprite used to fill. */
   .home-key-art-rig { display: block; }
   /* A slime comes apart into parts, so it must never be painted one part at a time: until every
      layer has decoded the whole rig stays out, and then it appears in one piece. */
   .home-key-art-rig[data-rig-pending] { visibility: hidden; }
-  .home-key-art-rig > .home-key-art-part { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .home-key-art-rig .home-key-art-part { position: absolute; inset: 0; width: 100%; height: 100%; }
   /* The resting face is the only one painted; the other stays decoded underneath, ready to swap in. */
   .home-key-art-face:not([data-visible]) { opacity: 0; }
   /* Parts a rig keeps tucked away (the ringtail's tongue) are decoded and stacked, but unpainted
@@ -419,6 +579,45 @@ for (const { orientation, scene } of scenes) {
     .home-key-art[data-entrance] .home-key-art-layer[data-idle] .home-key-art-piece:nth-of-type(2n) {
       animation-delay: calc(var(--idle-delay, 0s) - 1.7s);
     }
+    /* Parts breathe on their own: wings fan, fins paddle, tails and whiskers drift. Each part turns
+       around the point where it leaves the body, handed over as its transform-origin. Ears are left
+       out: they are flicked by script, one at a time, and must not run a cycle of their own. */
+    .home-key-art[data-entrance] .home-key-art-part[data-motion]:not([data-motion="twitch"]) {
+      animation-duration: var(--motion-duration, 2400ms);
+      animation-delay: var(--motion-delay, 0ms);
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+    }
+    .home-key-art[data-entrance] .home-key-art-part[data-motion="flap"] { animation-name: key-art-part-flap; }
+    /* Butterfly wings: narrow and snap open around the hinge, which is how a beat reads on a flat
+       sprite. The timing keeps the downstroke quick and the recovery a little slower. */
+    .home-key-art[data-entrance] .home-key-art-part[data-motion="beat"] {
+      animation-name: key-art-part-beat;
+      animation-timing-function: cubic-bezier(.45, 0, .55, 1);
+    }
+    .home-key-art[data-entrance] .home-key-art-part[data-motion="sway"] { animation-name: key-art-part-sway; }
+    /* A heavy, runny body: the part leans from a point near its top, so the lower half lags behind like
+       honey that has not set yet. Turns rather than stretches, which keeps the outline soft. */
+    .home-key-art[data-entrance] .home-key-art-part[data-motion="squish"] {
+      animation-name: key-art-part-squish;
+      animation-timing-function: cubic-bezier(.42, 0, .58, 1);
+    }
+    /* A hanging lamp lingers at the ends of its arc and hurries through the middle, so it swings on the
+       same path as a tail but with a heavier clock. */
+    .home-key-art[data-entrance] .home-key-art-part[data-motion="lure"] {
+      animation-name: key-art-part-sway;
+      animation-timing-function: cubic-bezier(.45, 0, .55, 1);
+    }
+    /* The whole body rocks on the breathing animation's own clock: same duration, same delay, so the
+       lean peaks when the chest is fullest. It rotates instead of scaling, which is a different
+       property from the breathing (scale/translate) and from the click wobble (transform), so the
+       three compose instead of overwriting each other. */
+    .home-key-art[data-entrance] .home-key-art-piece[data-sway] .home-key-art-jelly {
+      animation: key-art-body-sway var(--idle-duration, 9.6s) ease-in-out var(--idle-delay, 0s) infinite;
+    }
+    .home-key-art[data-entrance] .home-key-art-piece[data-sway]:nth-of-type(2n) .home-key-art-jelly {
+      animation-delay: calc(var(--idle-delay, 0s) - 1.7s);
+    }
 
   }
 
@@ -429,6 +628,56 @@ for (const { orientation, scene } of scenes) {
   @keyframes key-art-idle-breathe {
     0%, 100% { scale: 1; translate: 0 0; }
     50% { scale: var(--idle-peak, 1.04); translate: var(--idle-dx, 0%) var(--idle-dy, 0%); }
+  }
+  @keyframes key-art-body-sway {
+    0%, 100% { rotate: calc(var(--sway-angle, 2.5deg) * -1); }
+    50% { rotate: var(--sway-angle, 2.5deg); }
+  }
+  /* The wing tips lift together and settle together; the mirror lives in the sign of --swing. */
+  @keyframes key-art-part-flap {
+    0%, 100% { rotate: calc(var(--swing, 8deg) * -1); }
+    50% { rotate: var(--swing, 8deg); }
+  }
+  /* One beat: the wings lift, then turn away from the viewer at the top of the stroke. The turn is a
+     yaw under `perspective`, which narrows the wing towards its tip and gives the foreshortening a
+     real vanishing direction -- the thing a flat squash cannot fake. It holds edge-on for a moment,
+     then swings back down and slightly past its resting spread. */
+  @keyframes key-art-part-beat {
+    0% { rotate: 0deg; transform: perspective(var(--beat-perspective, 320px)) rotateY(0deg); }
+    50% { rotate: var(--swing, 8deg); transform: perspective(var(--beat-perspective, 320px)) rotateY(var(--turn, 30deg)) scaleY(var(--stretch, 1)); }
+    100% { rotate: 0deg; transform: perspective(var(--beat-perspective, 320px)) rotateY(0deg); }
+  }
+  /* A folded part is drawn twice: the half that stays put, and a flap built from the same art, clipped
+     to the crease's far side and swung about that crease. At 0deg the two halves meet and the wing looks
+     whole; at 176deg the flap lies back over the wing, which is a page turning rather than a sprite
+     narrowing. Each half darkens as it lifts, so the crease reads as a fold in the light. */
+  .home-key-art-part[data-fold-base="left"] { clip-path: inset(0 0 0 var(--fold-x, 50%)); }
+  .home-key-art-part[data-fold-base="right"] { clip-path: inset(0 calc(100% - var(--fold-x, 50%)) 0 0); }
+  .home-key-art-fold { transform-origin: var(--fold-x, 50%) 50%; }
+  .home-key-art-fold[data-fold="left"] { clip-path: inset(0 calc(100% - var(--fold-x, 50%)) 0 0); }
+  .home-key-art-fold[data-fold="right"] { clip-path: inset(0 0 0 var(--fold-x, 50%)); }
+  @keyframes key-art-part-fold {
+    0%, 100% { transform: perspective(var(--fold-perspective, 320px)) rotateY(0deg); filter: none; }
+    50% { transform: perspective(var(--fold-perspective, 320px)) rotateY(var(--fold-deg, 176deg)); filter: brightness(.86); }
+  }
+  .home-key-art[data-entrance] .home-key-art-fold {
+    animation: key-art-part-fold var(--motion-duration, 2400ms) cubic-bezier(.45, 0, .55, 1) var(--motion-delay, 0ms) infinite;
+  }
+  @keyframes key-art-part-sway {
+    0%, 100% { rotate: calc(var(--swing, 6deg) * -1); }
+    50% { rotate: var(--swing, 6deg); }
+  }
+  /* Shearing the silhouette from a high origin leans the bottom sideways without moving the top, which
+     is what a viscous body does when the weight under it shifts. */
+  @keyframes key-art-part-squish {
+    0%, 100% { transform: skew(calc(var(--swing, 2deg) * -1), calc(var(--swing, 2deg) * .3)); }
+    50% { transform: skew(var(--swing, 2deg), calc(var(--swing, 2deg) * -.3)); }
+  }
+  /* A hanging lamp lingers at the ends of its arc and passes through the middle quickly; `lure` is
+     the sway with that timing, and the glow runs a beat behind the stem (see slime-motion). */
+  @keyframes key-art-part-lure {
+    0%, 100% { rotate: calc(var(--swing, 10deg) * -1); }
+    50% { rotate: var(--swing, 10deg); }
   }
   @keyframes key-art-light-reveal {
     from { opacity: 0; }

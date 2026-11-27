@@ -1,6 +1,9 @@
 import { gsap } from 'gsap';
 import { mountHomeParallax } from './home-parallax';
 import { mountSlimeBlink } from './home-slime-blink';
+import { mountSlimeDrip } from './home-slime-drip';
+import { mountSlimeJelly } from './home-slime-jelly';
+import { mountSlimeTwitch } from './home-slime-twitch';
 import { mountSlimeVoice, preloadSlimeVoices, type VoiceLibrary } from './home-slime-voice';
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -20,6 +23,9 @@ let mountedHero: HTMLElement | undefined;
 let entrance: gsap.core.Timeline | undefined;
 let unmountParallax: (() => void) | undefined;
 let unmountBlink: (() => void) | undefined;
+let unmountJelly: (() => void) | undefined;
+let unmountTwitch: (() => void) | undefined;
+let unmountDrip: (() => void) | undefined;
 let unmountVoice: (() => void) | undefined;
 let mountedVoices: VoiceLibrary | undefined;
 
@@ -84,6 +90,35 @@ function startBlink() {
 function stopBlink() {
   unmountBlink?.();
   unmountBlink = undefined;
+}
+
+function startJelly() {
+  if (mountedHero && !unmountJelly) unmountJelly = mountSlimeJelly(mountedHero);
+}
+
+function stopJelly() {
+  unmountJelly?.();
+  unmountJelly = undefined;
+}
+
+// Ears flick on their own schedule; the timer only starts once the scene is on screen.
+function startTwitch() {
+  if (mountedHero && !unmountTwitch) unmountTwitch = mountSlimeTwitch(mountedHero);
+}
+
+function stopTwitch() {
+  unmountTwitch?.();
+  unmountTwitch = undefined;
+}
+
+// Drips fall on their own schedule; the timer only starts once the scene is on screen.
+function startDrip() {
+  if (mountedHero && !unmountDrip) unmountDrip = mountSlimeDrip(mountedHero);
+}
+
+function stopDrip() {
+  unmountDrip?.();
+  unmountDrip = undefined;
 }
 
 function startVoice(voices?: VoiceLibrary) {
@@ -186,6 +221,9 @@ function finishKeyArtLoad(hero: HTMLElement, loaded: boolean, voices?: VoiceLibr
   document.body.removeAttribute('data-page-loading');
   startParallax();
   startBlink();
+  startJelly();
+  startTwitch();
+  startDrip();
   startVoice(voices);
 }
 
@@ -217,6 +255,9 @@ document.addEventListener('astro:before-swap', () => {
   stopKeyArtEntrance();
   stopParallax();
   stopBlink();
+  stopJelly();
+  stopTwitch();
+  stopDrip();
   stopVoice();
 });
 document.addEventListener('astro:after-swap', startKeyArt);
