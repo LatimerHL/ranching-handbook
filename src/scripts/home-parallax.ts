@@ -270,7 +270,7 @@ export function mountHomeParallax(hero: HTMLElement) {
       toggle.disabled = false;
     }
     const label = toggle?.closest('label');
-    if (label && tiltState === 'insecure') label.title = '需要通过 HTTPS 访问才能启用倾斜动效';
+    if (label && tiltState === 'insecure') label.title = '需要通过 HTTPS 访问才能启用基于设备运动的倾斜动效';
     else if (label && tiltState === 'denied') label.title = '运动与方向权限被拒绝，可再点一次重试';
     else if (label && tiltState === 'unsupported') label.title = '这台设备没有运动与方向传感器';
     else if (label && tiltState === 'prompt') label.title = '开启时会请求运动与方向权限';

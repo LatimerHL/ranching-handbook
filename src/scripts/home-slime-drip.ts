@@ -1,4 +1,4 @@
-﻿// The honey slime drips. The drops are drawn in the honey artwork as two blobs sitting against the
+// The honey slime drips. The drops are drawn in the honey artwork as two blobs sitting against the
 // body; instead of painting them in place, the rig keeps them out of its layer stack and this script
 // drops copies of them from the slime's underside, one at a time, on a loose beat.
 //

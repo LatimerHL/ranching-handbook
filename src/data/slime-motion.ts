@@ -1,4 +1,4 @@
-﻿// Ambient motion: the parts that move on their own, without being touched.
+// Ambient motion: the parts that move on their own, without being touched.
 //
 // Every part is drawn on the full sprite canvas, so the point it should turn around is where it
 // leaves the body -- measured from the artwork (the part's pixel closest to the body's centre of
