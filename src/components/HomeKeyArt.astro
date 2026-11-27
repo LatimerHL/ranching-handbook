@@ -7,6 +7,7 @@ import { slimePivots } from '../data/slime-pivots';
 import { partMotions, bodySway, type PartMotion } from '../data/slime-motion';
 import { slimeVoices } from '../data/slime-voice';
 import HomeLightAccents from './HomeLightAccents.astro';
+import LoadingIndicator from './LoadingIndicator.astro';
 
 type Dimensions = { width: number; height: number };
 type Point = { x: number; y: number };
@@ -100,6 +101,7 @@ const backgroundRect = (scene: Scene) => {
   const scaleY = frame.height * scale / frame.canvas.height;
 
   return {
+    file: sky.file,
     x: frame.x + frame.width * (1 - scale) / 2 + sky.x * scaleX,
     y: frame.y + frame.height * (1 - scale) / 2 + sky.y * scaleY,
     width: sky.width * scaleX,
@@ -119,7 +121,7 @@ const frameStyle = (scene: Scene, beam: Point) => {
     '--beam-y': percent(beam.y, scene.canvas.height),
   };
 };
-const scenes: { orientation: string; scene: Scene; beam: Point; background: Rect }[] = [
+const scenes: { orientation: string; scene: Scene; beam: Point; background: Rect & { file: string } }[] = [
   { orientation: 'landscape', scene: landscape },
   { orientation: 'portrait', scene: portrait },
 ].map(({ orientation, scene }) => {
@@ -394,6 +396,17 @@ for (const { orientation, scene } of scenes) {
   </div>
 ))}
 
+<LoadingIndicator home>
+  {scenes.map(({ orientation, scene, beam, background }) => (
+    <div class="home-key-art-preview" data-orientation={orientation} aria-hidden="true">
+      <div class="home-key-art-frame" style={frameStyle(scene, beam)}>
+        <img class="home-key-art-preview-sky" src={assets + background.file} alt=""
+          style={position(background, scene.canvas)} />
+      </div>
+    </div>
+  ))}
+</LoadingIndicator>
+
 <script is:inline>
   // Decide the active scene once per document (and again after a client-side swap) instead of
   // letting a media query re-evaluate mid-navigation: during a view transition the incoming page
@@ -438,38 +451,42 @@ for (const { orientation, scene } of scenes) {
 </script>
 
 <style>
-  .home-key-art {
+  .home-key-art, .home-key-art-preview {
     position: absolute;
     inset: 0;
-    z-index: -3;
     overflow: hidden;
     pointer-events: none;
     container-type: size;
+  }
+  .home-key-art {
+    z-index: -3;
     /* Reveal span for light effects that fade in on load instead of popping with the entrance. */
     --key-art-reveal-duration: 1.35s;
   }
+  .home-key-art-preview { z-index: -2; }
+  .home-key-art-preview-sky { position: absolute; filter: blur(22px); }
   /* Only one scene is ever painted. The active one is chosen by `data-layout` on <html>, set once
      per document and after each swap, so a transient viewport size during navigation cannot bring
      the other orientation in. The media query stays as a no-JS fallback. */
-  .home-key-art[data-orientation="portrait"] {
+  :is(.home-key-art, .home-key-art-preview)[data-orientation="portrait"] {
     background: var(--cover-base);
     opacity: 0;
     visibility: hidden;
   }
-  :global(html[data-layout="portrait"]) .home-key-art[data-orientation="portrait"] {
+  :global(html[data-layout="portrait"]) :is(.home-key-art, .home-key-art-preview)[data-orientation="portrait"] {
     opacity: 1;
     visibility: visible;
   }
-  :global(html[data-layout="portrait"]) .home-key-art[data-orientation="landscape"] {
+  :global(html[data-layout="portrait"]) :is(.home-key-art, .home-key-art-preview)[data-orientation="landscape"] {
     opacity: 0;
     visibility: hidden;
   }
   @media (orientation: portrait) {
-    :global(html:not([data-layout])) .home-key-art[data-orientation="portrait"] {
+    :global(html:not([data-layout])) :is(.home-key-art, .home-key-art-preview)[data-orientation="portrait"] {
       opacity: 1;
       visibility: visible;
     }
-    :global(html:not([data-layout])) .home-key-art[data-orientation="landscape"] {
+    :global(html:not([data-layout])) :is(.home-key-art, .home-key-art-preview)[data-orientation="landscape"] {
       opacity: 0;
       visibility: hidden;
     }
@@ -477,17 +494,13 @@ for (const { orientation, scene } of scenes) {
   /* Live rotation cross-fades the two scenes. Both stay painted for the length of the transition,
      so the outgoing one fades out while the incoming one fades in instead of one popping in over
      the other. Outside this window the swap is instant (navigation must never ghost). */
-  :global(html[data-layout-fading]) .home-key-art[data-orientation] {
+  :global(html[data-layout-fading]) :is(.home-key-art, .home-key-art-preview)[data-orientation] {
     visibility: visible;
     transition: opacity 420ms var(--ease-enter, cubic-bezier(.22, .61, .21, 1));
   }
-  /* `visibility` is re-declarable, so the orientation rules above pin the active scene visible even
-     while the document still hides its own direct children behind the loading cover. Without this
-     the artwork paints its background layers while the slimes (frozen by `data-rig-pending`) and
-     Beatrix are still in flight, which reads as half a picture. Both scenes stay hidden until the
-     loading flag goes away, which only happens once every hero image has decoded. */
+  /* Wait for the media as a whole so the loading preview never exposes a half-assembled scene. */
   @media (scripting: enabled) {
-    :global(body[data-page-loading]) .home-key-art[data-orientation] {
+    :global(.home-hero[data-loading]) .home-key-art[data-orientation] {
       visibility: hidden;
       opacity: 0;
     }

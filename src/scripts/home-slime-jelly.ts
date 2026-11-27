@@ -28,7 +28,7 @@ export function mountSlimeJelly(hero: HTMLElement): () => void {
   const onClick = (event: MouseEvent) => {
     if (reducedMotion.matches) return;
     // The artwork only becomes clickable once the entrance has handed the scene over.
-    if (document.body.hasAttribute('data-page-loading')) return;
+    if (hero.hasAttribute('data-loading')) return;
 
     const target = event.target;
     if (!(target instanceof Element)) return;

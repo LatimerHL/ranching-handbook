@@ -7,10 +7,8 @@
 // still talking ignores further pokes at itself -- its clip plays to the end, and the next poke after
 // that answers as usual. That rule is shared with the wobble in `./slime-poke`.
 //
-// The clips are part of the page-loading step: they are fetched while the loading overlay is up and
-// kept as object URLs, so the first poke has nothing to wait for. Clips are small (a few hundred
-// kilobytes for the whole hero) and a slime's answer lands on a click, which is exactly the moment
-// a network round trip is most visible.
+// The clips start downloading during the loading preview and are kept as object URLs. If a clip
+// is still missing when a slime is poked, the player can fetch it on demand.
 
 import { slimeVoices } from '../data/slime-voice';
 import { blocked, hold, release } from './slime-poke';
@@ -22,7 +20,6 @@ export type VoiceLibrary = {
   clips: VoiceClips;
   // Resolves once every clip has settled, so a caller can keep the page loading until the audio is in hand.
   ready: Promise<void>;
-  dispose: () => void;
 };
 
 const libraryPaths = (): string[] => [...new Set(Object.values(slimeVoices).flat())];
@@ -31,10 +28,10 @@ const libraryPaths = (): string[] => [...new Set(Object.values(slimeVoices).flat
 // a time, and low priority where the browser honours it.
 const fetchConcurrency = 4;
 
-type NetworkInformation = { saveData?: boolean };
-
-export function preloadSlimeVoices(base: string | URL, signal?: AbortSignal): VoiceLibrary {
+export function preloadSlimeVoices(base: string | URL, signal: AbortSignal): VoiceLibrary {
   const clips: VoiceClips = new Map();
+  if (signal.aborted) return { clips, ready: Promise.resolve() };
+
   const created: string[] = [];
   let disposed = false;
 
@@ -44,12 +41,6 @@ export function preloadSlimeVoices(base: string | URL, signal?: AbortSignal): Vo
     created.length = 0;
     clips.clear();
   };
-
-  // A data-saver user gets the clips on the click that asks for them instead of the page load.
-  const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection;
-  if (connection?.saveData) {
-    return { clips, ready: Promise.resolve(), dispose };
-  }
 
   const pending = libraryPaths();
   const load = async (file: string) => {
@@ -70,13 +61,13 @@ export function preloadSlimeVoices(base: string | URL, signal?: AbortSignal): Vo
 
   const ready = Promise.all(
     Array.from({ length: Math.min(fetchConcurrency, pending.length) }, async () => {
-      while (pending.length) await load(pending.shift()!);
+      while (!disposed && pending.length) await load(pending.shift()!);
     }),
   ).then(() => undefined);
 
-  signal?.addEventListener('abort', dispose, { once: true });
+  signal.addEventListener('abort', dispose, { once: true });
 
-  return { clips, ready, dispose };
+  return { clips, ready };
 }
 
 const pick = (item: string, last: Map<string, string>): string | undefined => {

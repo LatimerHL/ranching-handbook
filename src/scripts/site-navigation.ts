@@ -1,7 +1,3 @@
-import { sitePath } from '../site.mjs';
-
-const home = sitePath(import.meta.env.BASE_URL);
-const homePaths = [home, home.slice(0, -1), home + 'index.html'];
 let clearProgress: (() => void) | undefined;
 
 function revealOrdinaryPage() {
@@ -99,17 +95,10 @@ document.addEventListener('astro:before-preparation', event => {
   event.loader = async () => {
     const completeProgress = startProgress(event.signal);
     try {
-      const keyArt = homePaths.includes(event.to.pathname) ? import('./home-key-art').catch(() => undefined) : undefined;
       await loadPage();
       if (event.defaultPrevented || event.signal.aborted) return;
-      const hero = event.newDocument.querySelector<HTMLElement>('.home-hero[data-loading]');
-      if (hero) {
-        const controller = await (keyArt ?? import('./home-key-art').catch(() => undefined));
-        if (!event.signal.aborted) await controller?.prepareHomeKeyArt(hero, event.to, event.signal);
-      } else {
-        // Astro has already fetched and parsed the Markdown-generated HTML.
-        event.newDocument.body.removeAttribute('data-page-loading');
-      }
+      // Swap as soon as the HTML is ready. The home hero manages its own media loading in place.
+      event.newDocument.body.removeAttribute('data-page-loading');
     } finally {
       // Finish on the current page before Astro captures it for the transition.
       await completeProgress?.();

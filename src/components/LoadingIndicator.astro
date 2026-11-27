@@ -1,9 +1,10 @@
 ---
 interface Props {
   navigation?: boolean;
+  home?: boolean;
 }
 
-const { navigation = false } = Astro.props;
+const { navigation = false, home = false } = Astro.props;
 ---
 
 {navigation ? (
@@ -12,7 +13,8 @@ const { navigation = false } = Astro.props;
     <span></span>
   </div>
 ) : (
-  <div id="page-loading" class="page-loading" role="status">
+  <div id={home ? undefined : 'page-loading'} class:list={['page-loading', { 'home-loading': home }]} role="status">
+    <slot />
     <span class="loading-spinner" aria-hidden="true"></span>
     <span>加载中</span>
   </div>
@@ -41,6 +43,28 @@ const { navigation = false } = Astro.props;
     opacity: 1;
     visibility: visible;
     transition: none;
+  }
+  .home-loading {
+    position: absolute;
+    z-index: -3;
+    isolation: isolate;
+    overflow: hidden;
+    background: var(--cover-base);
+    transition: opacity var(--motion-medium) ease-out, visibility 0s linear var(--motion-medium);
+  }
+  .home-loading::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background: color-mix(in srgb, var(--cover-base) 62%, transparent);
+  }
+  @media (scripting: enabled) {
+    :global(.home-hero[data-loading]) .home-loading {
+      opacity: 1;
+      visibility: visible;
+      transition: none;
+    }
   }
   .navigation-progress {
     position: fixed;
@@ -73,6 +97,9 @@ const { navigation = false } = Astro.props;
   }
   @media (prefers-reduced-motion: reduce) {
     .page-loading { transition: none; }
+  }
+  @media (scripting: none) {
+    .home-loading { display: none; }
   }
   @keyframes page-loading-spin {
     to { rotate: 1turn; }

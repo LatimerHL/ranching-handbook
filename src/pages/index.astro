@@ -6,14 +6,7 @@ import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import { fanContentNotice, projectRepository, sitePath } from '../site.mjs';
 
 const assets = sitePath(import.meta.env.BASE_URL, 'assets/');
-const controlImages = [
-  'github-mark-black.webp',
-  'github-mark-white.webp',
-  'cursors/pointer-light-32.png',
-  'cursors/pointer-light-64.png',
-  'cursors/pointer-dark-32.png',
-  'cursors/pointer-dark-64.png',
-].map(file => assets + file).join(' ');
+const loadingArtwork = assets + 'home-scene/hero-scene-layer-5-square.webp';
 ---
 
 <BaseLayout
@@ -23,7 +16,8 @@ const controlImages = [
   pageClass="home"
 >
   <link slot="head" rel="stylesheet" href={assets + 'home.css'} />
-  <main class="home-hero" aria-labelledby="welcome" data-loading data-control-images={controlImages}>
+  <link slot="head" rel="preload" as="image" href={loadingArtwork} fetchpriority="high" />
+  <main class="home-hero" aria-labelledby="welcome" data-loading>
     <HomeKeyArt />
     <Sidebar />
     <div class="home-actions">

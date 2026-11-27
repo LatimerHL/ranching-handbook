@@ -56,7 +56,6 @@ const links = [
     width: number;
     moved: boolean;
     dx: number;
-    axis: 'x' | null;
     samples: Sample[];
   }
 
@@ -109,6 +108,7 @@ const links = [
   };
 
   window.addEventListener('pointerdown', event => {
+    if (!event.isPrimary || event.button !== 0) return;
     const drawer = drawerElement();
     if (!drawer) return;
     const x = event.clientX;
@@ -126,7 +126,6 @@ const links = [
       width: drawer.offsetWidth,
       moved: false,
       dx: 0,
-      axis: null,
       samples: [{ t: event.timeStamp, x }],
     };
     pointerId = event.pointerId;
@@ -140,17 +139,15 @@ const links = [
     if (!hero || !drawer) return;
     const dx = event.clientX - g.startX;
     const dy = event.clientY - g.startY;
-    if (!g.axis) {
-      if (Math.abs(dx) < intent) return;
-      if (Math.abs(dy) >= Math.abs(dx)) {
-        // A vertical drag is a page scroll: drop the gesture so a diagonal drift later in the
-        // same touch cannot suddenly start moving the drawer.
+    if (!g.moved) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < intent) return;
+      const towardDrawerAction = g.wasOpen ? dx < 0 : dx > 0;
+      if (Math.abs(dy) >= Math.abs(dx) || !towardDrawerAction) {
+        // Leave vertical scrolling and swipes in the opposite direction alone.
         gesture = null;
         pointerId = undefined;
         return;
       }
-      // Lock the gesture to its axis once.
-      g.axis = 'x';
       g.moved = true;
       if (!g.wasOpen) {
         openPopover(drawer);

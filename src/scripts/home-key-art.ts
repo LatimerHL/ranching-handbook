@@ -16,10 +16,8 @@ const detailOffsetInRem = {
 };
 // The reference poster is 1080 px tall. Map vertical travel onto its half-height for the radial layers.
 const referenceRadiusInRem = 1080 / 2 / 16;
-type PreparedImage = { placeholder: HTMLImageElement; image: HTMLImageElement };
-type PreparedHome = { artwork: PreparedImage[]; loaded: boolean; voices?: VoiceLibrary };
-const preparedHomes = new WeakMap<HTMLElement, PreparedHome>();
 let mountedHero: HTMLElement | undefined;
+let mediaLoad: AbortController | undefined;
 let entrance: gsap.core.Timeline | undefined;
 let unmountParallax: (() => void) | undefined;
 let unmountBlink: (() => void) | undefined;
@@ -27,7 +25,6 @@ let unmountJelly: (() => void) | undefined;
 let unmountTwitch: (() => void) | undefined;
 let unmountDrip: (() => void) | undefined;
 let unmountVoice: (() => void) | undefined;
-let mountedVoices: VoiceLibrary | undefined;
 
 function stopKeyArtEntrance() {
   entrance?.revert();
@@ -73,7 +70,7 @@ function playKeyArtEntrance(scenes: HTMLElement[]) {
 }
 
 function startParallax() {
-  if (mountedHero?.querySelector('.home-key-art[data-entrance]') && !reducedMotion.matches && !unmountParallax) {
+  if (mountedHero && !reducedMotion.matches && !unmountParallax) {
     unmountParallax = mountHomeParallax(mountedHero);
   }
 }
@@ -123,7 +120,6 @@ function stopDrip() {
 
 function startVoice(voices?: VoiceLibrary) {
   if (mountedHero && !unmountVoice) {
-    mountedVoices = voices;
     unmountVoice = mountSlimeVoice(mountedHero, voices?.clips);
   }
 }
@@ -131,83 +127,52 @@ function startVoice(voices?: VoiceLibrary) {
 function stopVoice() {
   unmountVoice?.();
   unmountVoice = undefined;
-  mountedVoices?.dispose();
-  mountedVoices = undefined;
 }
 
-function startVoicePreload(hero: HTMLElement, base: string | URL, signal?: AbortSignal) {
+function startVoicePreload(hero: HTMLElement, signal: AbortSignal) {
   const source = hero.querySelector<HTMLElement>('.home-key-art')?.dataset.voiceSrc;
   if (!source) return undefined;
   try {
-    return preloadSlimeVoices(new URL(source, base), signal);
+    return preloadSlimeVoices(new URL(source, document.baseURI), signal);
   } catch {
     return undefined;
   }
 }
 
-// The clips are part of the loading step: the overlay stays up until the last one is in hand, so the
-// first poke never waits on the network. `ready` settles even when a clip fails (the click retries
-// that one), and a data-saver user skips the preload entirely, so this cannot hang the page.
-async function settleVoice(voices: VoiceLibrary | undefined) {
-  if (!voices) return;
-  await voices.ready;
+const voiceGraceMs = 8000;
+
+// Give audio time to finish after the artwork is ready. A stalled clip can continue in the
+// background after this deadline, and the click handler can still fetch it on demand.
+function settleVoice(voices: VoiceLibrary | undefined, signal: AbortSignal) {
+  if (!voices || signal.aborted) return Promise.resolve();
+  return new Promise<void>(resolve => {
+    const done = () => {
+      window.clearTimeout(timer);
+      signal.removeEventListener('abort', done);
+      resolve();
+    };
+    const timer = window.setTimeout(done, voiceGraceMs);
+    signal.addEventListener('abort', done, { once: true });
+    void voices.ready.then(done);
+  });
 }
 
-async function decodeGraphics(hero: HTMLElement, artwork: HTMLImageElement[], base: string | URL, signal?: AbortSignal) {
-  const controls = (hero.dataset.controlImages?.split(' ') ?? []).map(src => {
-    const image = new Image();
-    image.src = new URL(src, base).href;
-    return image;
-  });
-  const images = [...artwork, ...controls];
+async function decodeGraphics(hero: HTMLElement, signal: AbortSignal) {
+  const images = [...hero.querySelectorAll<HTMLImageElement>('.home-key-art img')];
   const cancel = () => {
     for (const image of images) image.removeAttribute('src');
   };
-  signal?.addEventListener('abort', cancel, { once: true });
+  signal.addEventListener('abort', cancel, { once: true });
   try {
     const results = await Promise.allSettled(images.map(image => image.decode()));
     return results.every(result => result.status === 'fulfilled');
   } finally {
-    signal?.removeEventListener('abort', cancel);
+    signal.removeEventListener('abort', cancel);
   }
-}
-
-export async function prepareHomeKeyArt(hero: HTMLElement, destination: URL, signal: AbortSignal) {
-  // Decode in the active document and reuse those nodes after the swap, even with an empty cache.
-  const artwork = [...hero.querySelectorAll('img[src]')].map(placeholder => {
-    const image = document.importNode(placeholder, false);
-    image.src = new URL(placeholder.getAttribute('src')!, destination).href;
-    return { placeholder, image };
-  });
-  // Start the clips first so they download while the artwork decodes; the swap waits for both.
-  const voices = startVoicePreload(hero, destination, signal);
-  const artworkDone = decodeGraphics(hero, artwork.map(({ image }) => image), destination, signal);
-  const [loaded] = await Promise.all([artworkDone, settleVoice(voices)]);
-  if (signal.aborted) return;
-  for (const { placeholder } of artwork) placeholder.removeAttribute('src');
-  hero.ownerDocument.body.removeAttribute('data-page-loading');
-  preparedHomes.set(hero, { artwork, loaded, voices });
-}
-
-// A cut-out slime is only meaningful as a whole: revealing it part by part reads as a body that
-// lost its head to a wing that has not arrived yet. Each rig therefore stays invisible until every
-// one of its own layers has decoded, and then appears in one piece.
-const rigRevealFallbackMs = 8000;
-
-function revealRigs(hero: HTMLElement) {
-  const rigs = [...hero.querySelectorAll<HTMLElement>('.home-key-art-rig[data-rig-pending]')];
-  if (!rigs.length) return;
-  const reveal = (rig: HTMLElement) => rig.removeAttribute('data-rig-pending');
-  for (const rig of rigs) {
-    const layers = [...rig.querySelectorAll('img')];
-    Promise.allSettled(layers.map(image => image.decode())).then(() => reveal(rig));
-  }
-  // Insurance: a layer that never settles must not leave the slime missing for good.
-  setTimeout(() => rigs.forEach(reveal), rigRevealFallbackMs);
 }
 
 function finishKeyArtLoad(hero: HTMLElement, loaded: boolean, voices?: VoiceLibrary) {
-  revealRigs(hero);
+  for (const rig of hero.querySelectorAll('[data-rig-pending]')) rig.removeAttribute('data-rig-pending');
   const scenes = [...hero.querySelectorAll<HTMLElement>('.home-key-art')];
   if (!loaded) {
     // Leave the page usable if a graphic fails, without playing an incomplete entrance.
@@ -218,8 +183,6 @@ function finishKeyArtLoad(hero: HTMLElement, loaded: boolean, voices?: VoiceLibr
     playKeyArtEntrance(scenes);
   }
   hero.removeAttribute('data-loading');
-  document.body.removeAttribute('data-page-loading');
-  startParallax();
   startBlink();
   startJelly();
   startTwitch();
@@ -231,22 +194,14 @@ async function startKeyArt() {
   const hero = document.querySelector<HTMLElement>('.home-hero');
   if (!hero || hero === mountedHero) return;
   mountedHero = hero;
-
-  const prepared = preparedHomes.get(hero);
-  if (prepared) {
-    preparedHomes.delete(hero);
-    for (const { placeholder, image } of prepared.artwork) placeholder.replaceWith(image);
-    finishKeyArtLoad(hero, prepared.loaded, prepared.voices);
-    return;
-  }
+  mediaLoad = new AbortController();
+  const { signal } = mediaLoad;
+  startParallax();
   // Both orientations must be ready so a resize during the entrance can switch scenes.
-  const voices = startVoicePreload(hero, document.baseURI);
-  const artworkDone = decodeGraphics(hero, [...hero.querySelectorAll('img')], document.baseURI);
-  // The live <img> nodes are the ones that paint here, so each rig can land as soon as its own
-  // layers are ready instead of waiting for the whole hero.
-  revealRigs(hero);
-  const [loaded] = await Promise.all([artworkDone, settleVoice(voices)]);
-  if (mountedHero === hero && hero.isConnected) finishKeyArtLoad(hero, loaded, voices);
+  const voices = startVoicePreload(hero, signal);
+  const loaded = await decodeGraphics(hero, signal);
+  await settleVoice(voices, signal);
+  if (!signal.aborted && hero.isConnected) finishKeyArtLoad(hero, loaded, voices);
 }
 
 startKeyArt();
@@ -259,6 +214,8 @@ document.addEventListener('astro:before-swap', () => {
   stopTwitch();
   stopDrip();
   stopVoice();
+  mediaLoad?.abort();
+  mediaLoad = undefined;
 });
 document.addEventListener('astro:after-swap', startKeyArt);
 reducedMotion.addEventListener('change', ({ matches }) => {

@@ -57,7 +57,7 @@ export function mountSlimeDrip(hero: HTMLElement): () => void {
         || document.visibilityState !== 'visible'
         || !scene
         || getComputedStyle(scene).visibility !== 'visible'
-        || document.body.hasAttribute('data-page-loading');
+        || hero.hasAttribute('data-loading');
       if (!skipped) fall(rig, sources[Math.floor(Math.random() * sources.length)]);
       schedule(rig, sources, between(gapMs));
     }, delay);

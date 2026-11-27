@@ -53,8 +53,6 @@
   );
 }
 
-.home-hero:is([data-loading], [data-load-error]) .motion-rise { animation-name: none; }
-
 .home-hero::before,
 .home-hero::after {
   content: "";

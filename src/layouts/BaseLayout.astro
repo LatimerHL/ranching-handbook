@@ -7,6 +7,7 @@ import '../styles/controls.css';
 
 const { title, description, themeColor = '#f8f5eb', locale = defaultLocale, pageClass } = Astro.props;
 const assets = sitePath(import.meta.env.BASE_URL, 'assets/');
+const isHome = pageClass === 'home';
 ---
 
 <!doctype html>
@@ -29,8 +30,8 @@ const assets = sitePath(import.meta.env.BASE_URL, 'assets/');
     </noscript>
     <ClientRouter />
   </head>
-  <body data-page-loading>
-    <LoadingIndicator />
+  <body data-page-loading={isHome ? undefined : ''}>
+    {!isHome && <LoadingIndicator />}
     <script is:inline data-astro-rerun>
       (() => {
         const page = document.body;

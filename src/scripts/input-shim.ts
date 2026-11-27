@@ -95,12 +95,13 @@ function bindTriggers() {
   // to hit-testing that point when the click did not land on a trigger.
   let pointerX = -1;
   let pointerY = -1;
-  const remember = (event: PointerEvent | MouseEvent) => {
+  const remember = (event: MouseEvent) => {
+    if ((event as PointerEvent).pointerType === 'touch') return;
     pointerX = event.clientX;
     pointerY = event.clientY;
   };
   window.addEventListener('pointermove', remember, { capture: true, passive: true });
-  window.addEventListener('mousemove', remember as EventListener, { capture: true, passive: true });
+  window.addEventListener('mousemove', remember, { capture: true, passive: true });
 
   let lastToggle = 0;
   const guarded = (panel: HTMLElement, open: boolean) => {
@@ -128,9 +129,16 @@ function bindTriggers() {
   };
 
   document.addEventListener('click', event => {
-    const hit = resolve(event.target as Element | null)
-      ?? resolve(document.elementFromPoint(event.clientX, event.clientY))
-      ?? (pointerX >= 0 ? resolve(document.elementFromPoint(pointerX, pointerY)) : null);
+    let hit = resolve(event.target as Element | null);
+    // Keyboard and assistive activation use the focused target. The Android mouse fallback may
+    // also receive an empty pointer type or "pen", so check the tracked input for those events.
+    const pointerType = (event as PointerEvent).pointerType;
+    const mouseClick = event.detail > 0 && (pointerType === 'mouse'
+      || (pointerType !== 'touch' && document.documentElement.dataset.input === 'mouse'));
+    if (!hit && mouseClick) {
+      hit = resolve(document.elementFromPoint(event.clientX, event.clientY))
+        ?? (pointerX >= 0 ? resolve(document.elementFromPoint(pointerX, pointerY)) : null);
+    }
     if (!hit) return;
     const open = hit.action === 'show' ? true : hit.action === 'hide' ? false : !isPopoverOpen(hit.panel);
     guarded(hit.panel, open);
